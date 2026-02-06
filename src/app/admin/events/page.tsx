@@ -1,12 +1,26 @@
 'use client';
 
 import { useCollection, useFirestore, useMemoFirebase, useUser } from '@/firebase';
-import { collection, query, where } from 'firebase/firestore';
+import { collection, query, where, doc, deleteDoc } from 'firebase/firestore';
 import type { Event } from '@/lib/types';
 import { CreateEventForm } from '@/components/admin/CreateEventForm';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { EventCard } from '@/components/events/EventCard';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Loader2, Trash2 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
 
 function AdminEventGridSkeleton() {
     return (
@@ -31,6 +45,9 @@ function AdminEventGridSkeleton() {
 export default function EventsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
+  const { toast } = useToast();
+  const [eventToDelete, setEventToDelete] = useState<Event | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Only fetch events created by the current admin
   const eventsQuery = useMemoFirebase(() => {
@@ -39,6 +56,31 @@ export default function EventsPage() {
   }, [firestore, user]);
   
   const { data: events, isLoading } = useCollection<Event>(eventsQuery);
+
+  const handleDeleteEvent = async () => {
+    if (!eventToDelete || !firestore) return;
+
+    setIsDeleting(true);
+    try {
+        await deleteDoc(doc(firestore, 'events', eventToDelete.id));
+
+       toast({
+           title: 'Event Deleted',
+           description: `"${eventToDelete.name}" has been successfully removed.`,
+       });
+
+    } catch (error) {
+        console.error('Error deleting event:', error);
+        toast({
+            title: 'Deletion Failed',
+            description: 'Could not delete the event. Please try again.',
+            variant: 'destructive',
+        });
+    } finally {
+        setIsDeleting(false);
+        setEventToDelete(null);
+    }
+  };
 
   return (
     <div className="p-4 md:p-8">
@@ -51,14 +93,27 @@ export default function EventsPage() {
           {isLoading || !events ? (
             <AdminEventGridSkeleton />
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {events.map((event) => (
-                <EventCard key={event.id} event={event} />
-              ))}
-              {events.length === 0 && (
-                  <p className="text-muted-foreground col-span-2">You haven't created any events yet.</p>
-              )}
-            </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {events.map((event) => (
+                  <div key={event.id} className="relative group/event">
+                    <EventCard event={event} />
+                    <Button
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-4 right-4 z-10 opacity-0 group-hover/event:opacity-100 transition-opacity"
+                        onClick={() => setEventToDelete(event)}
+                        aria-label="Delete event"
+                    >
+                        <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+                {events.length === 0 && (
+                    <p className="text-muted-foreground col-span-2">You haven't created any events yet.</p>
+                )}
+              </div>
+            </>
           )}
         </div>
         <div className="lg:col-span-2">
@@ -74,6 +129,28 @@ export default function EventsPage() {
             </div>
         </div>
       </div>
+      <AlertDialog open={!!eventToDelete} onOpenChange={(open) => !open && setEventToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This action cannot be undone. This will permanently delete the event
+                    <span className="font-bold"> {eventToDelete?.name}</span>. Associated bookings will not be deleted but will become inaccessible.
+                </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                    onClick={handleDeleteEvent}
+                    disabled={isDeleting}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                    {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Delete Event
+                </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
