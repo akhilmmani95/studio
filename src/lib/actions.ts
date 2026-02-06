@@ -39,7 +39,7 @@ export async function createRazorpayOrder(amount: number) {
 
     try {
         const order = await razorpay.orders.create(options);
-        return order;
+        return { ...order, key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID! };
     } catch (error) {
         console.error("Error creating razorpay order", error);
         throw new Error("Could not create Razorpay order.");

@@ -76,18 +76,18 @@ export function BookingForm({ event }: BookingFormProps) {
     setIsSubmitting(true);
     
     try {
-      const order = await createRazorpayOrder(totalAmount);
-      if (!order) {
+      const orderData = await createRazorpayOrder(totalAmount);
+      if (!orderData || !orderData.key) {
         throw new Error('Order creation failed');
       }
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
-        amount: order.amount,
-        currency: order.currency,
+        key: orderData.key,
+        amount: orderData.amount,
+        currency: orderData.currency,
         name: 'TicketVerse',
         description: `Booking for ${event.name}`,
-        order_id: order.id,
+        order_id: orderData.id,
         handler: async function (response: any) {
           try {
             await createBooking({
