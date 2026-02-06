@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -9,6 +9,7 @@ import { verifyPayload } from '@/lib/jwt';
 import { markAsRedeemed } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, XCircle, ScanLine, AlertTriangle, Loader2 } from 'lucide-react';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 type VerificationResult = {
     status: 'valid' | 'invalid' | 'redeemed';
@@ -24,6 +25,40 @@ export function VerifierClient() {
   const [scannedJwt, setScannedJwt] = useState('');
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const getCameraPermission = async () => {
+      if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
+        setHasCameraPermission(false);
+        toast({
+            variant: 'destructive',
+            title: 'Camera Not Supported',
+            description: 'Your browser does not support camera access.',
+        });
+        return;
+      }
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to use the scanner.',
+        });
+      }
+    };
+    getCameraPermission();
+  }, [toast]);
+
 
   const handleSync = (data: string) => {
     const jwts = data.split('\n').filter(Boolean);
@@ -35,19 +70,18 @@ export function VerifierClient() {
     });
   };
 
-  const handleVerify = async () => {
-    if (!scannedJwt) {
-        toast({ title: 'Error', description: 'Please enter a ticket code to verify.', variant: 'destructive'});
+  const handleVerify = async (jwtToVerify: string) => {
+    if (!jwtToVerify) {
+        toast({ title: 'Error', description: 'No ticket code provided.', variant: 'destructive'});
         return;
     }
 
     setIsVerifying(true);
     setResult(null);
 
-    // Simulate network delay for a more realistic feel
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    const payload = verifyPayload(scannedJwt);
+    const payload = verifyPayload(jwtToVerify);
 
     if (!payload) {
       setResult({ status: 'invalid', message: 'Invalid or tampered ticket code.' });
@@ -55,8 +89,8 @@ export function VerifierClient() {
       return;
     }
 
-    if (!validJwts.includes(scannedJwt)) {
-        setResult({ status: 'invalid', message: 'Ticket not found in the synced data. It might be from a different event or already invalid.'});
+    if (!validJwts.includes(jwtToVerify)) {
+        setResult({ status: 'invalid', message: 'Ticket not found. It may be invalid or not synced.'});
         setIsVerifying(false);
         return;
     }
@@ -67,41 +101,51 @@ export function VerifierClient() {
         return;
     }
     
-    // Mark as redeemed locally
     setRedeemedIds(prev => new Set(prev).add(payload.bookingId));
 
-    // Try to sync redemption with server, but don't block UI
     markAsRedeemed(payload.bookingId).catch(err => {
-        console.error("Failed to sync redemption to server. Will retry later.", err);
-        // In a real PWA, you'd queue this for later sync.
+        console.error("Failed to sync redemption to server.", err);
     });
 
     setResult({ status: 'valid', message: 'Ticket is valid and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
     setScannedJwt('');
     setIsVerifying(false);
+    
+    setTimeout(() => {
+        setResult(null);
+    }, 4000);
   };
 
   const VerificationScreen = () => {
     if (isVerifying) {
-        return <div className="flex flex-col items-center justify-center h-full"><Loader2 className="h-16 w-16 animate-spin text-primary" /><p className="mt-4 text-lg font-semibold">Verifying...</p></div>;
+        return <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10"><Loader2 className="h-16 w-16 animate-spin text-primary" /><p className="mt-4 text-lg font-semibold">Verifying...</p></div>;
     }
 
     if (!result) {
-        return <div className="flex flex-col items-center justify-center h-full text-muted-foreground"><ScanLine className="h-16 w-16 mb-4" /><p>Ready to scan</p></div>;
+        return null;
     }
 
+    let content;
     switch(result.status) {
         case 'valid':
-            return <div className="flex flex-col items-center justify-center h-full text-green-500"><CheckCircle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">VALID</h2><p className="text-sm mt-2">{result.bookingId}</p></div>;
+            content = <div className="text-green-500 flex flex-col items-center text-center"><CheckCircle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">VALID</h2><p className="text-sm mt-2">{result.bookingId}</p></div>;
+            break;
         case 'invalid':
-            return <div className="flex flex-col items-center justify-center h-full text-destructive"><XCircle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">INVALID</h2><p className="text-center mt-2 text-base font-medium">{result.message}</p></div>;
+            content = <div className="text-destructive flex flex-col items-center text-center"><XCircle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">INVALID</h2><p className="text-center mt-2 text-base font-medium">{result.message}</p></div>;
+            break;
         case 'redeemed':
-            return <div className="flex flex-col items-center justify-center h-full text-yellow-500"><AlertTriangle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">ALREADY REDEEMED</h2><p className="text-sm mt-2">{result.bookingId}</p></div>;
+            content = <div className="text-yellow-500 flex flex-col items-center text-center"><AlertTriangle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">ALREADY REDEEMED</h2><p className="text-sm mt-2">{result.bookingId}</p></div>;
+            break;
         default:
             return null;
     }
-  }
 
+    return (
+        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 p-4">
+            {content}
+        </div>
+    );
+  }
 
   return (
     <Tabs defaultValue="scanner" className="w-full">
@@ -114,25 +158,42 @@ export function VerifierClient() {
           <CardHeader>
             <CardTitle>Ticket Scanner</CardTitle>
             <CardDescription>
-                Enter the data from the QR code to verify a ticket. In a real PWA, this would use the device camera.
+                The camera is active for QR code scanning. For now, please paste the code manually below.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="grid md:grid-cols-2 gap-6">
-                <div className="space-y-4">
+            <div className="space-y-4">
+                <div className="bg-muted rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
+                    <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                    {hasCameraPermission === false && (
+                         <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4">
+                            <Alert variant="destructive" className="w-auto">
+                                <AlertTriangle className="h-4 w-4" />
+                                <AlertTitle>Camera Access Required</AlertTitle>
+                                <AlertDescription>
+                                    Please allow camera access to use this feature.
+                                </AlertDescription>
+                            </Alert>
+                        </div>
+                    )}
+                     {hasCameraPermission === null && (
+                         <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                            <Loader2 className="h-8 w-8 animate-spin" />
+                         </div>
+                     )}
+                     <VerificationScreen />
+                </div>
+                 <div className="space-y-2">
                     <Textarea
-                        placeholder="Paste QR code data here..."
+                        placeholder="Or paste QR code data here..."
                         value={scannedJwt}
                         onChange={(e) => setScannedJwt(e.target.value)}
-                        className="h-32"
+                        className="h-24"
                     />
-                    <Button onClick={handleVerify} className="w-full" size="lg" disabled={isVerifying}>
+                    <Button onClick={() => handleVerify(scannedJwt)} className="w-full" size="lg" disabled={isVerifying || !scannedJwt}>
                         <ScanLine className="mr-2 h-5 w-5" />
-                        Verify Ticket
+                        Verify Manually
                     </Button>
-                </div>
-                <div className="bg-muted rounded-lg aspect-square flex items-center justify-center">
-                    <VerificationScreen />
                 </div>
             </div>
           </CardContent>
