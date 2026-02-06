@@ -1,0 +1,186 @@
+"use client";
+
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+
+import type { Event, TicketTier } from '@/lib/types';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import { Input } from '@/components/ui/input';
+import { Minus, Plus, Ticket } from 'lucide-react';
+import { BookingSchema } from '@/lib/schemas';
+import { createBooking } from '@/lib/actions';
+import { useToast } from '@/hooks/use-toast';
+
+type BookingFormProps = {
+  event: Event;
+};
+
+const CheckoutFormSchema = BookingSchema.pick({ name: true, phone: true });
+
+export function BookingForm({ event }: BookingFormProps) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const [selectedTier, setSelectedTier] = useState<TicketTier>(event.ticketTiers[0]);
+  const [quantity, setQuantity] = useState(1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const form = useForm<z.infer<typeof CheckoutFormSchema>>({
+    resolver: zodResolver(CheckoutFormSchema),
+    defaultValues: {
+      name: '',
+      phone: '',
+    },
+  });
+
+  const handleTierChange = (tierId: string) => {
+    const tier = event.ticketTiers.find((t) => t.id === tierId);
+    if (tier) {
+      setSelectedTier(tier);
+    }
+  };
+
+  const totalAmount = selectedTier.price * quantity;
+
+  async function onSubmit(data: z.infer<typeof CheckoutFormSchema>) {
+    setIsSubmitting(true);
+    try {
+        await createBooking({
+            ...data,
+            eventId: event.id,
+            ticketTierId: selectedTier.id,
+            quantity: quantity,
+        });
+        // The action will handle the redirect
+    } catch (error) {
+        toast({
+            title: "Booking Failed",
+            description: "Something went wrong. Please try again.",
+            variant: "destructive"
+        })
+        setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle>Book Your Tickets</CardTitle>
+        <CardDescription>Select your ticket and quantity.</CardDescription>
+      </CardHeader>
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)}>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <Label htmlFor="ticket-tier">Ticket Tier</Label>
+                    <Select onValueChange={handleTierChange} defaultValue={selectedTier.id}>
+                        <SelectTrigger id="ticket-tier">
+                        <SelectValue placeholder="Select a tier" />
+                        </SelectTrigger>
+                        <SelectContent>
+                        {event.ticketTiers.map((tier) => (
+                            <SelectItem key={tier.id} value={tier.id}>
+                            {tier.name} - ₹{tier.price}
+                            </SelectItem>
+                        ))}
+                        </SelectContent>
+                    </Select>
+                </div>
+                <div>
+                    <Label>Quantity</Label>
+                    <div className="flex items-center gap-2">
+                        <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                        >
+                        <Minus className="h-4 w-4" />
+                        </Button>
+                        <Input
+                        type="number"
+                        className="w-16 text-center"
+                        value={quantity}
+                        readOnly
+                        />
+                        <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={() => setQuantity(quantity + 1)}
+                        >
+                        <Plus className="h-4 w-4" />
+                        </Button>
+                    </div>
+                </div>
+            </div>
+
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name</FormLabel>
+                  <FormControl>
+                    <Input placeholder="John Doe" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="phone"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Phone Number</FormLabel>
+                  <FormControl>
+                    <Input placeholder="9876543210" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="text-2xl font-bold text-right">
+              Total: ₹{totalAmount.toLocaleString()}
+            </div>
+          </CardContent>
+          <CardFooter>
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
+              <Ticket className="mr-2 h-5 w-5" />
+              {isSubmitting ? "Processing..." : "Pay & Book Now"}
+            </Button>
+          </CardFooter>
+        </form>
+      </Form>
+    </Card>
+  );
+}

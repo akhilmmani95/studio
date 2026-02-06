@@ -1,3 +1,46 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "event-1",
+      "description": "A vibrant music festival at night.",
+      "imageUrl": "https://images.unsplash.com/photo-1656401992374-5ce15b9a11fa?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8bXVzaWMlMjBmZXN0aXZhbHxlbnwwfHx8fDE3NzAzMzYyNDB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "music festival"
+    },
+    {
+      "id": "event-2",
+      "description": "A stand-up comedy show.",
+      "imageUrl": "https://images.unsplash.com/photo-1682632618859-47904338bea1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxjb21lZHklMjBzaG93fGVufDB8fHx8MTc3MDM3NDc0Mnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "comedy show"
+    },
+    {
+      "id": "event-3",
+      "description": "A professional theater performance.",
+      "imageUrl": "https://images.unsplash.com/photo-1613210434051-4b00d62d03fb?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw3fHx0aGVhdGVyJTIwc3RhZ2V8ZW58MHx8fHwxNzcwMjk5MTEzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "theater stage"
+    },
+    {
+      "id": "event-4",
+      "description": "A local food and wine festival.",
+      "imageUrl": "https://images.unsplash.com/photo-1675674683873-1232862e3c64?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxmb29kJTIwZmVzdGl2YWx8ZW58MHx8fHwxNzcwMzM0NzAxfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "food festival"
+    },
+    {
+      "id": "event-5",
+      "description": "An electronic dance music party.",
+      "imageUrl": "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwyfHxkaiUyMHBhcnR5fGVufDB8fHx8MTc3MDM3NDc0Mnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "dj party"
+    },
+    {
+      "id": "event-6",
+      "description": "A sports championship match.",
+      "imageUrl": "https://images.unsplash.com/photo-1565483276060-e6730c0cc6a1?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxzcG9ydHMlMjBzdGFkaXVtfGVufDB8fHx8MTc3MDMwMTIzMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "sports stadium"
+    },
+    {
+      "id": "user-avatar-1",
+      "description": "User avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwzfHxwZXJzb24lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NzAzMzYzNzl8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person portrait"
+    }
+  ]
 }
