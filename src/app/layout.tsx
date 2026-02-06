@@ -34,7 +34,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={cn('antialiased font-body', fontBody.variable, fontHeadline.variable)}>
+      <body className={cn('antialiased font-body', fontBody.variable, fontHeadline.variable)} suppressHydrationWarning>
         <div className="relative flex min-h-screen flex-col">
           {children}
         </div>
