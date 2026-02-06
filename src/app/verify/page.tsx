@@ -14,7 +14,7 @@ export default function VerifyPage() {
                     Ticket Verifier
                 </h1>
                 <p className="mt-4 max-w-2xl mx-auto text-lg text-muted-foreground">
-                    Scan and validate tickets offline. First, sync the valid ticket data from the admin panel.
+                    Scan and validate tickets online in real-time. An internet connection is required.
                 </p>
             </div>
 

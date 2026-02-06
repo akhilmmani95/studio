@@ -1,95 +1,34 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useFirestore, useUser } from '@/firebase';
-import { collection, query, getDocs, where } from 'firebase/firestore';
-import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { QrCode } from 'lucide-react';
-import { Skeleton } from '@/components/ui/skeleton';
+import { QrCode, Wifi } from 'lucide-react';
 
 export default function VerifierDataPage() {
-  const [syncData, setSyncData] = useState<string>('');
-  const [ticketCount, setTicketCount] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const firestore = useFirestore();
-  const { user } = useUser();
-
-  useEffect(() => {
-    async function fetchValidBookingIds() {
-      if (!firestore || !user) {
-        return;
-      }
-
-      setIsLoading(true);
-      const unredeemedBookings: { bookingId: string; eventId: string; }[] = [];
-
-      // 1. Get all events created by this admin
-      const eventsQuery = query(collection(firestore, 'events'), where('adminId', '==', user.uid));
-      const eventsSnapshot = await getDocs(eventsQuery);
-
-      // 2. For each event, get all its unredeemed bookings
-      for (const eventDoc of eventsSnapshot.docs) {
-        const bookingsQuery = query(collection(firestore, `events/${eventDoc.id}/bookings`), where('redeemed', '==', false));
-        const bookingsSnapshot = await getDocs(bookingsQuery);
-        const eventBookings = bookingsSnapshot.docs.map(doc => ({
-          bookingId: doc.id,
-          eventId: eventDoc.id,
-        }));
-        unredeemedBookings.push(...eventBookings);
-      }
-      
-      // 3. Create a JSON string of the booking identifiers
-      setSyncData(JSON.stringify(unredeemedBookings, null, 2));
-      setTicketCount(unredeemedBookings.length);
-      setIsLoading(false);
-    }
-
-    fetchValidBookingIds();
-  }, [firestore, user]);
-
-
   return (
     <div className="p-4 md:p-8">
       <div className="flex items-center gap-4 mb-6">
         <QrCode className="w-8 h-8 text-primary" />
-        <h1 className="text-3xl font-bold font-headline">Verifier App Sync Data</h1>
+        <h1 className="text-3xl font-bold font-headline">Ticket Verification</h1>
       </div>
       <p className="text-muted-foreground mb-8 max-w-3xl">
-        This page provides all the necessary data for the offline ticket verifier app.
-        Before an event, copy this JSON data and paste it into the verifier app to sync all valid, unredeemed tickets.
-        This enables offline verification at the gate.
+        Ticket verification is now handled exclusively online to ensure real-time accuracy. The offline sync feature has been removed.
       </p>
 
       <Card>
         <CardHeader>
-          <CardTitle>Valid Ticket Data (JSON)</CardTitle>
+          <CardTitle>Online-Only Verification</CardTitle>
           <CardDescription>
-            A JSON array of all valid tickets that have not yet been redeemed.
+            All ticket scanning and validation now happens on the public <a href="/verify" className="text-primary underline">Verifier Page</a>.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="space-y-2">
-              <Skeleton className="h-96 w-full" />
-              <Skeleton className="h-5 w-40" />
-            </div>
-          ) : (
-            <>
-              <Textarea
-                readOnly
-                value={syncData}
-                className="h-96 font-mono text-xs"
-                placeholder="No valid tickets found."
-              />
-              <p className="text-sm text-muted-foreground mt-2">
-                {ticketCount} valid ticket(s) found.
-              </p>
-            </>
-          )}
+        <CardContent className="flex flex-col items-center justify-center text-center p-10">
+          <Wifi className="w-16 h-16 text-primary mb-4"/>
+          <p className="text-lg font-semibold">Real-Time Validation</p>
+          <p className="text-muted-foreground mt-2">
+            The verifier app requires an internet connection to instantly check the status of each ticket against the live database.
+          </p>
         </CardContent>
       </Card>
-      
     </div>
   );
 }
