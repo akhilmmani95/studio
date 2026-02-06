@@ -1,0 +1,219 @@
+{
+  "entities": {
+    "Event": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Event",
+      "type": "object",
+      "description": "Represents an event for which tickets are sold.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the event."
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the event."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the event."
+        },
+        "venue": {
+          "type": "string",
+          "description": "Venue of the event."
+        },
+        "dateTime": {
+          "type": "string",
+          "description": "Date and time of the event.",
+          "format": "date-time"
+        },
+        "ticketPrices": {
+          "type": "array",
+          "description": "Available ticket prices for the event.",
+          "items": {
+            "type": "number"
+          }
+        },
+        "adminId": {
+          "type": "string",
+          "description": "Reference to Admin who created the event. (Relationship: Admin 1:N Event)"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "venue",
+        "dateTime",
+        "ticketPrices",
+        "adminId"
+      ]
+    },
+    "Booking": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Booking",
+      "type": "object",
+      "description": "Represents a ticket booking made by a user.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the booking."
+        },
+        "eventId": {
+          "type": "string",
+          "description": "Reference to the Event booked. (Relationship: Event 1:N Booking)"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the person who booked the ticket."
+        },
+        "phone": {
+          "type": "string",
+          "description": "Phone number of the person who booked the ticket."
+        },
+        "ticketType": {
+          "type": "number",
+          "description": "The price of the ticket booked."
+        },
+        "bookingDate": {
+          "type": "string",
+          "description": "Date and time when the booking was made.",
+          "format": "date-time"
+        },
+        "paymentId": {
+          "type": "string",
+          "description": "ID of the payment."
+        },
+        "qrCode": {
+          "type": "string",
+          "description": "QR Code for the ticket."
+        },
+        "isRedeemed": {
+          "type": "boolean",
+          "description": "Indicates if the ticket has been redeemed."
+        },
+        "redemptionTimestamp": {
+          "type": "string",
+          "description": "Timestamp of when the ticket was redeemed.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "eventId",
+        "name",
+        "phone",
+        "ticketType",
+        "bookingDate",
+        "paymentId",
+        "qrCode",
+        "isRedeemed"
+      ]
+    },
+    "Admin": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Admin",
+      "type": "object",
+      "description": "Represents an administrator of the system.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the admin."
+        },
+        "username": {
+          "type": "string",
+          "description": "Admin's username for login."
+        },
+        "email": {
+          "type": "string",
+          "description": "Admin's email address.",
+          "format": "email"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "email"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/admins/{adminId}",
+        "definition": {
+          "entityName": "Admin",
+          "schema": {
+            "$ref": "#/backend/entities/Admin"
+          },
+          "description": "Stores admin user data.  This collection uses path-based ownership.",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "The unique identifier for the admin user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{adminId}",
+        "definition": {
+          "entityName": "AdminRole",
+          "schema": {
+            "$ref": "#/backend/entities/Admin"
+          },
+          "description": "Documents in this collection represent admin roles. The existence of a document for a given `adminId` grants admin privileges.",
+          "params": [
+            {
+              "name": "adminId",
+              "description": "The unique identifier for the admin user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/events/{eventId}",
+        "definition": {
+          "entityName": "Event",
+          "schema": {
+            "$ref": "#/backend/entities/Event"
+          },
+          "description": "Stores event data. Includes `adminId` for authorization independence, specifying which admin created the event.",
+          "params": [
+            {
+              "name": "eventId",
+              "description": "The unique identifier for the event."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/events/{eventId}/bookings/{bookingId}",
+        "definition": {
+          "entityName": "Booking",
+          "schema": {
+            "$ref": "#/backend/entities/Booking"
+          },
+          "description": "Stores booking data associated with an event. Includes `eventId` to guarantee authorization independence.",
+          "params": [
+            {
+              "name": "eventId",
+              "description": "The unique identifier for the event."
+            },
+            {
+              "name": "bookingId",
+              "description": "The unique identifier for the booking."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the event ticket booking application with a focus on security, scalability, and offline capabilities for the ticket verification app.  Authorization Independence is achieved by storing the `adminId` within the `events` collection, thus enabling rules without requiring `get()` calls. For bookings, the `eventId` is denormalized allowing direct querying of bookings under a specific event. Additionally, to facilitate the admin panel login requirement a roles collection (`roles_admin`) is used, leaning on existence rather than content for simplicity. The structure also considers the QAPs by segregating data based on access levels. The event data is separate from admin user data, ensuring that list operations on events can be securely managed. The use of path-based ownership for Events under admins enables secure listing of events accessible to a specific admin. Bookings are stored as subcollections under events, which means listing bookings under a particular event is also very secure and efficient."
+  }
+}
