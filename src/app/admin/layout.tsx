@@ -12,16 +12,12 @@ export default function AdminLayout({
 }) {
   return (
     <SidebarProvider>
-      <div className="relative flex min-h-screen flex-col">
-        <div className="flex-1">
-          <Sidebar collapsible="none">
-            <AdminNav />
-          </Sidebar>
-          <SidebarInset>
-            <main>{children}</main>
-          </SidebarInset>
-        </div>
-      </div>
+      <Sidebar collapsible="none">
+        <AdminNav />
+      </Sidebar>
+      <SidebarInset>
+        <main>{children}</main>
+      </SidebarInset>
     </SidebarProvider>
   );
 }
