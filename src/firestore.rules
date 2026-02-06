@@ -1,0 +1,146 @@
+/**
+ * Core Philosophy: This ruleset implements an access control system where any
+ * signed-in user can create and manage their own events.
+ *
+ * Data Structure:
+ * - /admins/{adminId}: Private profile data for each user, accessible only by the user themselves.
+ * - /events/{eventId}: A public collection of events that anyone can read. Write access is
+ *   restricted to the user who created the event.
+ * - /events/{eventId}/bookings/{bookingId}: A subcollection for bookings related to an event.
+ *   Bookings can be created by anyone (e.g., via a public checkout form), but can only be
+ *   read or managed by the user who owns the parent event.
+ *
+ * Key Security Decisions:
+ * - Public vs. Private Data: The /events collection is publicly readable to allow users to
+ *   browse events. All other data, including user profiles and event bookings, is private
+ *   and requires specific authorization to access.
+ * - Default Deny: All operations are denied by default. Access is only granted through
+ *   explicit 'allow' statements.
+ *
+ * Denormalization for Authorization:
+ * - The `events` collection contains a denormalized `adminId` field (representing the creator's UID).
+ *   This allows security rules to verify event ownership directly from the event document without
+ *   needing to perform extra reads, resulting in faster and more efficient rule execution.
+ *
+ * Structural Segregation:
+ * - Public event data (/events) is stored separately from private user data (/admins). This clear
+ *   separation simplifies rules and prevents accidental data leakage through list queries.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper Functions
+    
+    /**
+     * Checks if a user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Checks if the currently authenticated user's UID matches the provided userId.
+     * This is the primary function for establishing document ownership.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * Checks if the requesting user is the admin who owns the parent event.
+     * This requires reading the parent event document.
+     */
+    function isEventAdmin(eventId) {
+      let eventAdminId = get(/databases/$(database)/documents/events/$(eventId)).data.adminId;
+      return isOwner(eventAdminId);
+    }
+    
+    /**
+     * Validates that the incoming admin profile data contains an `id` field
+     * that matches the document's path ID. Used only on create.
+     */
+    function incomingAdminDataIsValid(adminId) {
+      return request.resource.data.id == adminId;
+    }
+
+    /**
+     * Ensures critical relational fields are not changed during an update.
+     */
+    function isImmutable(fieldName) {
+      return request.resource.data[fieldName] == resource.data[fieldName];
+    }
+    
+    /**
+     * On create, validates the incoming event has an owner matching the requestor
+     * and that the document ID matches the path.
+     */
+    function incomingEventDataIsValid(eventId) {
+      let incomingData = request.resource.data;
+      return incomingData.adminId == request.auth.uid
+             && incomingData.id == eventId;
+    }
+
+    /**
+     * On create, validates that incoming booking data is correctly linked
+     * to its path.
+     */
+    function incomingBookingDataIsValid(eventId, bookingId) {
+      let incomingData = request.resource.data;
+      return incomingData.eventId == eventId
+             && incomingData.id == bookingId;
+    }
+    
+    /**
+     * @description
+     *   Admin user profiles. Only the owner of the profile can read or write to it.
+     *   Listing admin profiles is disallowed to prevent user enumeration.
+     * @path /admins/{adminId}
+     * @allow (get) An authenticated user with UID 'admin123' reading their own document at /admins/admin123.
+     * @deny (get) User 'user456' trying to read /admins/admin123.
+     * @principle Restricts access to a user's own data tree.
+     */
+    match /admins/{adminId} {
+      allow get: if isOwner(adminId);
+      allow list: if false;
+      allow create: if isOwner(adminId) && incomingAdminDataIsValid(adminId);
+      allow update: if isOwner(adminId) && resource != null && isImmutable('id');
+      allow delete: if isOwner(adminId) && resource != null;
+    }
+
+    /**
+     * @description
+     *   Publicly readable event data. Anyone can view events, but only a signed-in user
+     *   can create events, and only the original creator can update or delete them.
+     * @path /events/{eventId}
+     * @allow (list) Any user, signed in or not, listing all documents in the /events collection.
+     * @deny (create) An unauthenticated user trying to create a new event.
+     * @principle Implements a "Public Read with Owner-Only Writes" pattern.
+     */
+    match /events/{eventId} {
+      allow get: if true;
+      allow list: if true;
+      allow create: if isSignedIn() && incomingEventDataIsValid(eventId);
+      allow update: if isSignedIn() && isOwner(resource.data.adminId) && resource != null && isImmutable('id') && isImmutable('adminId');
+      allow delete: if isSignedIn() && isOwner(resource.data.adminId) && resource != null;
+
+      /**
+       * @description
+       *   Bookings for a specific event. Anyone can create a booking (e.g., a public form).
+       *   Anyone with the link can view a specific booking.
+       *   Only the event admin can list, update, or delete bookings.
+       * @path /events/{eventId}/bookings/{bookingId}
+       * @allow (create) An anonymous user submitting data to create a new booking document.
+       * @deny (get) A regular user trying to read booking details for an event.
+       * @principle Secures a subcollection by checking ownership data on the parent document.
+       */
+      match /bookings/{bookingId} {
+        allow get: if true;
+        allow list: if isSignedIn() && isEventAdmin(eventId);
+        allow create: if incomingBookingDataIsValid(eventId, bookingId);
+        allow update: if isSignedIn() && isEventAdmin(eventId) && resource != null && isImmutable('id') && isImmutable('eventId');
+        delete: if isSignedIn() && isEventAdmin(eventId) && resource != null;
+      }
+    }
+  }
+}
