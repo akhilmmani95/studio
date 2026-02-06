@@ -1,4 +1,5 @@
 'use client';
+
 import { notFound, useParams } from 'next/navigation';
 import { Suspense } from 'react';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
@@ -32,17 +33,6 @@ function BookingSuccessPageContents() {
   const eventId = params.eventId as string;
   const bookingId = params.bookingId as string;
   const firestore = useFirestore();
-  
-  if (!eventId || !bookingId) {
-    return (
-        <>
-            <Header />
-            <main className="flex-1 py-12 md:py-16 bg-secondary/50">
-                <SuccessPageSkeleton />
-            </main>
-        </>
-    );
-  }
 
   const eventRef = useMemoFirebase(() => (firestore && eventId) ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading: isLoadingEvent } = useDoc<Event>(eventRef);
@@ -76,6 +66,17 @@ function BookingSuccessPageContents() {
     link.click();
     document.body.removeChild(link);
   };
+  
+  if (!eventId || !bookingId) {
+      return (
+          <>
+              <Header />
+              <main className="flex-1 py-12 md:py-16 bg-secondary/50">
+                  <SuccessPageSkeleton />
+              </main>
+          </>
+      )
+  }
 
   const isLoading = isLoadingEvent || isLoadingBooking || !qrCodeUrl;
   
