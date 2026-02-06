@@ -1,6 +1,6 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -10,6 +10,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -17,12 +18,13 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { EventSchema } from '@/lib/schemas';
 import { createEvent } from '@/lib/actions';
 import { useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { Label } from '@/components/ui/label';
 
 export function CreateEventForm() {
   const [isPending, startTransition] = useTransition();
@@ -35,7 +37,13 @@ export function CreateEventForm() {
       venue: '',
       date: undefined,
       description: '',
+      ticketTiers: [{ name: 'General Admission', price: 500, totalSeats: 100 }],
     },
+  });
+
+  const { fields, append, remove } = useFieldArray({
+    control: form.control,
+    name: 'ticketTiers',
   });
 
   function onSubmit(values: z.infer<typeof EventSchema>) {
@@ -138,6 +146,83 @@ export function CreateEventForm() {
             </FormItem>
           )}
         />
+
+        <div>
+          <Label>Ticket Tiers</Label>
+          <FormDescription className="mb-4">
+            Add at least one ticket tier for your event.
+          </FormDescription>
+          <div className="space-y-4">
+            {fields.map((field, index) => (
+              <div key={field.id} className="rounded-md border bg-muted/50 p-4 relative">
+                <FormField
+                  control={form.control}
+                  name={`ticketTiers.${index}.name`}
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Tier Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., VIP" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <div className="grid grid-cols-2 gap-4 mt-4">
+                  <FormField
+                    control={form.control}
+                    name={`ticketTiers.${index}.price`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price (₹)</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="1000" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name={`ticketTiers.${index}.totalSeats`}
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Total Seats</FormLabel>
+                        <FormControl>
+                          <Input type="number" placeholder="100" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                {fields.length > 1 && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-2 right-2"
+                    onClick={() => remove(index)}
+                  >
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                )}
+              </div>
+            ))}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="mt-2"
+              onClick={() => append({ name: '', price: 0, totalSeats: 50 })}
+            >
+              <PlusCircle className="mr-2 h-4 w-4" />
+              Add Tier
+            </Button>
+            <FormMessage>{form.formState.errors.ticketTiers?.root?.message}</FormMessage>
+          </div>
+        </div>
+
         <Button type="submit" className="w-full" disabled={isPending}>
           {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Create Event

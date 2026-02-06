@@ -2,6 +2,7 @@ export type TicketTier = {
   id: string;
   name: string;
   price: number;
+  totalSeats: number;
 };
 
 export type Event = {

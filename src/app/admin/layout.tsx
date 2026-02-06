@@ -14,7 +14,7 @@ export default function AdminLayout({
     <SidebarProvider>
       <div className="relative flex min-h-screen flex-col">
         <div className="flex-1">
-          <Sidebar>
+          <Sidebar collapsible="none">
             <AdminNav />
           </Sidebar>
           <SidebarInset>

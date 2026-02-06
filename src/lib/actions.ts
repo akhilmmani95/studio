@@ -7,6 +7,8 @@ import type { Event, Booking } from '@/lib/types';
 import { signPayload } from '@/lib/jwt';
 import { PlaceHolderImages } from './placeholder-images';
 import { notFound } from 'next/navigation';
+import { z } from 'zod';
+import { EventSchema } from './schemas';
 
 // A mock database
 let events: Event[] = [...mockEvents];
@@ -126,17 +128,16 @@ export async function getAllValidTicketJWTs() {
     return validBookings.map(b => signPayload({ bookingId: b.id, eventId: b.eventId }));
 }
 
-export async function createEvent(data: { name: string; venue: string; date: Date; description: string; }) {
+export async function createEvent(data: z.infer<typeof EventSchema>) {
     const newEvent: Event = {
         ...data,
         date: data.date.toISOString(),
         id: `event-${Date.now()}`,
         image: `event-${(events.length % 6) + 1}`, // Cycle through placeholder images
-        ticketTiers: [
-            { id: 'tier-1', name: 'General', price: 500 },
-            { id: 'tier-2', name: 'VIP', price: 1000 },
-            { id: 'tier-3', name: 'VVIP', price: 1500 },
-        ],
+        ticketTiers: data.ticketTiers.map((tier, i) => ({
+            ...tier,
+            id: `tier-${i + 1}-${Date.now()}`,
+        })),
     };
     events.unshift(newEvent); // Add to the beginning of the array
     revalidatePath('/admin/events');

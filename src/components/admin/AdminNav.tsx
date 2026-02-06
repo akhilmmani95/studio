@@ -9,7 +9,6 @@ import {
   SidebarMenu,
   SidebarMenuItem,
   SidebarMenuButton,
-  SidebarTrigger,
   SidebarFooter,
 } from '@/components/ui/sidebar';
 import {
@@ -37,7 +36,6 @@ export function AdminNav() {
       <SidebarHeader>
         <div className="flex items-center justify-between">
           <Logo />
-          <SidebarTrigger />
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -47,7 +45,6 @@ export function AdminNav() {
               <SidebarMenuButton
                 asChild
                 isActive={pathname === item.href}
-                tooltip={{ children: item.label, side: 'right' }}
               >
                 <Link href={item.href}>
                   <item.icon />
@@ -63,7 +60,6 @@ export function AdminNav() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 asChild
-                tooltip={{ children: "Main Site", side: 'right' }}
               >
                 <Link href="/">
                   <Home />
