@@ -1,8 +1,9 @@
+
 'use server';
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { signPayload } from '@/lib/jwt';
+import { signPayload, verifyPayload } from '@/lib/jwt';
 import { PlaceHolderImages } from './placeholder-images';
 import { notFound } from 'next/navigation';
 import Razorpay from 'razorpay';
@@ -60,6 +61,10 @@ export async function verifyRazorpayPayment(data: {
 
 export async function generateTicketJwt(payload: Omit<JWTPayload, 'iat'>): Promise<string> {
     return signPayload(payload);
+}
+
+export async function verifyTicketJwt(token: string): Promise<JWTPayload | null> {
+    return verifyPayload(token);
 }
 
 

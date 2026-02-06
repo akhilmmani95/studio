@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -5,7 +6,7 @@ import jsQR from 'jsqr';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { verifyPayload } from '@/lib/jwt';
+import { verifyTicketJwt } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, XCircle, ScanLine, AlertTriangle, Loader2 } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
@@ -49,7 +50,7 @@ export function VerifierClient() {
 
     await new Promise(resolve => setTimeout(resolve, 500)); // Visual delay for user feedback
 
-    const payload = verifyPayload(jwtToVerify);
+    const payload = await verifyTicketJwt(jwtToVerify);
 
     if (!payload) {
         setResult({ status: 'invalid', message: 'Invalid or tampered ticket code.' });
