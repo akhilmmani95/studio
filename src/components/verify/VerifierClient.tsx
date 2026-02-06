@@ -10,8 +10,9 @@ import { verifyPayload } from '@/lib/jwt';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, XCircle, ScanLine, AlertTriangle, Loader2 } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { useFirestore, useUser } from '@/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
+import { useFirestore } from '@/firebase';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import type { Booking } from '@/lib/types';
 
 type VerificationResult = {
     status: 'valid' | 'invalid' | 'redeemed';
@@ -33,6 +34,23 @@ export function VerifierClient() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(true);
+  const [isVideoReady, setIsVideoReady] = useState(false);
+
+  const redeemTicket = useCallback((bookingId: string, eventId: string) => {
+    setRedeemedIds(prev => new Set(prev).add(bookingId));
+  
+    if(firestore) {
+        const bookingRef = doc(firestore, `events/${eventId}/bookings`, bookingId);
+        updateDoc(bookingRef, {
+            redeemed: true,
+            redeemedAt: new Date().toISOString()
+        }).catch(err => {
+            console.error("Failed to sync redemption to server.", err);
+            // The redemption is still stored locally for this session.
+            // A more robust app might have a retry queue.
+        });
+    }
+  }, [firestore]);
 
   const handleVerify = useCallback(async (jwtToVerify: string) => {
     if (!jwtToVerify) {
@@ -44,33 +62,42 @@ export function VerifierClient() {
     setIsVerifying(true);
     setResult(null);
 
-    await new Promise(resolve => setTimeout(resolve, 500));
+    await new Promise(resolve => setTimeout(resolve, 500)); // Visual delay for user feedback
 
     const payload = verifyPayload(jwtToVerify);
 
     if (!payload) {
-      setResult({ status: 'invalid', message: 'Invalid or tampered ticket code.' });
-    } else if (!validJwts.includes(jwtToVerify)) {
-        setResult({ status: 'invalid', message: 'Ticket not found. It may be invalid or not synced.'});
+        setResult({ status: 'invalid', message: 'Invalid or tampered ticket code.' });
     } else if (redeemedIds.has(payload.bookingId)) {
         setResult({ status: 'redeemed', message: `This ticket has already been redeemed on this device.` });
-    } else {
-      setRedeemedIds(prev => new Set(prev).add(payload.bookingId));
-      
-      // Mark as redeemed in Firestore
-      if(firestore) {
-          const bookingRef = doc(firestore, `events/${payload.eventId}/bookings`, payload.bookingId);
-          updateDoc(bookingRef, {
-              redeemed: true,
-              redeemedAt: new Date().toISOString()
-          }).catch(err => {
-              console.error("Failed to sync redemption to server.", err);
-              // The redemption is still stored locally for this session.
-              // A more robust app might have a retry queue.
-          });
-      }
+    } else if (validJwts.includes(jwtToVerify)) {
+        // Valid and found locally
+        redeemTicket(payload.bookingId, payload.eventId);
+        setResult({ status: 'valid', message: 'Ticket is valid and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
+    } else if (firestore) { // Online fallback
+        try {
+            const bookingRef = doc(firestore, `events/${payload.eventId}/bookings`, payload.bookingId);
+            const bookingSnap = await getDoc(bookingRef);
 
-      setResult({ status: 'valid', message: 'Ticket is valid and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
+            if (!bookingSnap.exists()) {
+                setResult({ status: 'invalid', message: 'Ticket not found online. It may be invalid or not synced.' });
+            } else {
+                const bookingData = bookingSnap.data() as Booking;
+                if (bookingData.redeemed) {
+                    setResult({ status: 'redeemed', message: `Ticket was already redeemed (synced from server).` });
+                } else {
+                    // Valid and found online
+                    redeemTicket(payload.bookingId, payload.eventId);
+                    setResult({ status: 'valid', message: 'Ticket is valid (verified online) and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
+                }
+            }
+        } catch (error) {
+            console.error("Online verification failed:", error);
+            setResult({ status: 'invalid', message: 'Ticket not found locally. Online check failed.' });
+        }
+    } else {
+        // Not found locally and no firestore connection
+        setResult({ status: 'invalid', message: 'Ticket not found in local sync data and offline.' });
     }
     
     setScannedJwt('');
@@ -80,7 +107,7 @@ export function VerifierClient() {
         setResult(null);
         setIsScanning(true); // Resume scanning
     }, 4000);
-  }, [toast, validJwts, redeemedIds, firestore]);
+  }, [toast, validJwts, redeemedIds, firestore, redeemTicket]);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -113,7 +140,7 @@ export function VerifierClient() {
   }, [toast]);
 
   useEffect(() => {
-    if (hasCameraPermission !== true || !isScanning || isVerifying || result) {
+    if (hasCameraPermission !== true || !isScanning || isVerifying || result || !isVideoReady) {
       return;
     }
 
@@ -132,6 +159,7 @@ export function VerifierClient() {
 
     const scanLoop = () => {
       if (!isScanning || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        animationFrameId = requestAnimationFrame(scanLoop);
         return;
       }
 
@@ -153,7 +181,7 @@ export function VerifierClient() {
     return () => {
       cancelAnimationFrame(animationFrameId);
     };
-  }, [hasCameraPermission, isScanning, isVerifying, result, handleVerify]);
+  }, [hasCameraPermission, isScanning, isVerifying, result, handleVerify, isVideoReady]);
 
 
   const handleSync = (data: string) => {
@@ -216,7 +244,7 @@ export function VerifierClient() {
             <CardContent>
               <div className="space-y-4">
                   <div className="bg-muted rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
-                      <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                      <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline onCanPlay={() => setIsVideoReady(true)} />
                       {hasCameraPermission === false && (
                            <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4">
                               <Alert variant="destructive" className="w-auto">

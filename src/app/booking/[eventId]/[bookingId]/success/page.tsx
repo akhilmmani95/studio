@@ -1,7 +1,7 @@
 'use client';
 
 import { notFound, useParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useRef } from 'react';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { TicketDisplay } from '@/components/booking/TicketDisplay';
@@ -12,6 +12,7 @@ import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Skeleton } from '@/components/ui/skeleton';
 import { generateTicketJwt } from '@/lib/actions';
 import QRCode from 'qrcode';
+import html2canvas from 'html2canvas';
 import { Button } from '@/components/ui/button';
 
 function SuccessPageSkeleton() {
@@ -33,6 +34,7 @@ function BookingSuccessPageContents() {
   const eventId = params.eventId as string;
   const bookingId = params.bookingId as string;
   const firestore = useFirestore();
+  const ticketRef = useRef<HTMLDivElement>(null);
 
   const eventRef = useMemoFirebase(() => (firestore && eventId) ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading: isLoadingEvent } = useDoc<Event>(eventRef);
@@ -58,13 +60,19 @@ function BookingSuccessPageContents() {
   }, [jwt]);
 
   const handleDownload = () => {
-    if (!qrCodeUrl || !booking) return;
-    const link = document.createElement('a');
-    link.href = qrCodeUrl;
-    link.download = `TicketVerse-Ticket-${booking.id}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    if (!ticketRef.current || !booking) return;
+
+    html2canvas(ticketRef.current, {
+      useCORS: true,
+      backgroundColor: null // Use a transparent background
+    }).then((canvas) => {
+        const link = document.createElement('a');
+        link.href = canvas.toDataURL('image/png');
+        link.download = `TicketVerse-Ticket-${booking.id}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    });
   };
   
   if (!eventId || !bookingId) {
@@ -117,12 +125,14 @@ function BookingSuccessPageContents() {
             </p>
           </div>
           
-          <TicketDisplay 
-            booking={booking}
-            event={eventWithImage}
-            ticketTier={ticketTier}
-            qrCodeUrl={qrCodeUrl}
-          />
+          <div ref={ticketRef}>
+            <TicketDisplay 
+                booking={booking}
+                event={eventWithImage}
+                ticketTier={ticketTier}
+                qrCodeUrl={qrCodeUrl}
+            />
+          </div>
           
           <div className="mt-8 flex justify-center">
             <Button onClick={handleDownload} size="lg" disabled={!qrCodeUrl}>
