@@ -55,7 +55,7 @@ export default function EventPage() {
     );
   }
 
-  if (!event || error) {
+  if (error || !event) {
     // This will be caught by the not-found mechanism in Next.js
     notFound();
   }
