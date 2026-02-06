@@ -25,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html lang="en" className="h-full" suppressHydrationWarning={true}>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
@@ -34,7 +34,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className={cn('antialiased font-body', fontBody.variable, fontHeadline.variable)} suppressHydrationWarning>
+      <body className={cn('antialiased font-body', fontBody.variable, fontHeadline.variable)} suppressHydrationWarning={true}>
         <div className="relative flex min-h-screen flex-col">
           {children}
         </div>
