@@ -26,6 +26,7 @@ export type Booking = {
   bookingDate: string;
   redeemed: boolean;
   redeemedAt: string | null;
+  paymentId?: string;
 };
 
 export type JWTPayload = {

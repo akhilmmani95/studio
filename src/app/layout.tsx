@@ -26,7 +26,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className={cn("h-full", fontBody.variable, fontHeadline.variable)} suppressHydrationWarning={true}>
-      <head />
+      <head>
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+      </head>
       <body className={cn('antialiased font-body')} suppressHydrationWarning={true}>
         <div className="relative flex min-h-screen flex-col">
           {children}

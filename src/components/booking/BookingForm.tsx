@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -35,7 +34,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Minus, Plus, Ticket } from 'lucide-react';
 import { BookingSchema } from '@/lib/schemas';
-import { createBooking } from '@/lib/actions';
+import { createBooking, createRazorpayOrder } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 
 type BookingFormProps = {
@@ -44,8 +43,13 @@ type BookingFormProps = {
 
 const CheckoutFormSchema = BookingSchema.pick({ name: true, phone: true });
 
+declare global {
+  interface Window {
+    Razorpay: any;
+  }
+}
+
 export function BookingForm({ event }: BookingFormProps) {
-  const router = useRouter();
   const { toast } = useToast();
   const [selectedTier, setSelectedTier] = useState<TicketTier>(event.ticketTiers[0]);
   const [quantity, setQuantity] = useState(1);
@@ -68,23 +72,73 @@ export function BookingForm({ event }: BookingFormProps) {
 
   const totalAmount = selectedTier.price * quantity;
 
-  async function onSubmit(data: z.infer<typeof CheckoutFormSchema>) {
+  async function handlePayment(data: z.infer<typeof CheckoutFormSchema>) {
     setIsSubmitting(true);
+    
     try {
-        await createBooking({
-            ...data,
-            eventId: event.id,
-            ticketTierId: selectedTier.id,
-            quantity: quantity,
-        });
-        // The action will handle the redirect
+      const order = await createRazorpayOrder(totalAmount);
+      if (!order) {
+        throw new Error('Order creation failed');
+      }
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        amount: order.amount,
+        currency: order.currency,
+        name: 'TicketVerse',
+        description: `Booking for ${event.name}`,
+        order_id: order.id,
+        handler: async function (response: any) {
+          try {
+            await createBooking({
+              ...data,
+              eventId: event.id,
+              ticketTierId: selectedTier.id,
+              quantity: quantity,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+            });
+            // Redirect is handled by createBooking server action
+          } catch (error) {
+            console.error(error);
+            toast({
+              title: "Booking Failed",
+              description: "Payment verification failed. Please contact support.",
+              variant: "destructive"
+            });
+            setIsSubmitting(false);
+          }
+        },
+        prefill: {
+          name: data.name,
+          contact: data.phone,
+        },
+        theme: {
+          color: '#8B5CF6',
+        },
+        modal: {
+            ondismiss: function() {
+                setIsSubmitting(false);
+                toast({
+                    title: "Payment Cancelled",
+                    description: "You can try booking again.",
+                    variant: "default"
+                });
+            }
+        }
+      };
+      const rzp = new window.Razorpay(options);
+      rzp.open();
+
     } catch (error) {
-        toast({
-            title: "Booking Failed",
-            description: "Something went wrong. Please try again.",
-            variant: "destructive"
-        })
-        setIsSubmitting(false);
+      console.error(error);
+      toast({
+        title: "Booking Failed",
+        description: "Something went wrong while setting up the payment. Please try again.",
+        variant: "destructive",
+      });
+      setIsSubmitting(false);
     }
   }
 
@@ -95,7 +149,7 @@ export function BookingForm({ event }: BookingFormProps) {
         <CardDescription>Select your ticket and quantity.</CardDescription>
       </CardHeader>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={form.handleSubmit(handlePayment)}>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
@@ -176,7 +230,7 @@ export function BookingForm({ event }: BookingFormProps) {
           <CardFooter>
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting}>
               <Ticket className="mr-2 h-5 w-5" />
-              {isSubmitting ? "Processing..." : "Pay & Book Now"}
+              {isSubmitting ? "Processing..." : `Pay ₹${totalAmount.toLocaleString()} & Book Now`}
             </Button>
           </CardFooter>
         </form>

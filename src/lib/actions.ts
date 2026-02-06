@@ -9,10 +9,17 @@ import { PlaceHolderImages } from './placeholder-images';
 import { notFound } from 'next/navigation';
 import { z } from 'zod';
 import { EventSchema } from './schemas';
+import Razorpay from 'razorpay';
+import crypto from 'crypto';
 
 // A mock database
 let events: Event[] = [...mockEvents];
 let bookings: Booking[] = [...mockBookings];
+
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID!,
+    key_secret: process.env.RAZORPAY_KEY_SECRET!,
+});
 
 export async function getEvents(): Promise<Event[]> {
   // In a real app, you would fetch this from a database
@@ -23,13 +30,43 @@ export async function getEventById(id: string): Promise<Event | undefined> {
   return Promise.resolve(events.find((event) => event.id === id));
 }
 
+export async function createRazorpayOrder(amount: number) {
+    const options = {
+        amount: amount * 100, // amount in the smallest currency unit
+        currency: "INR",
+        receipt: `receipt_order_${Date.now()}`
+    };
+
+    try {
+        const order = await razorpay.orders.create(options);
+        return order;
+    } catch (error) {
+        console.error("Error creating razorpay order", error);
+        throw new Error("Could not create Razorpay order.");
+    }
+}
+
 export async function createBooking(formData: {
   name: string;
   phone: string;
   eventId: string;
   ticketTierId: string;
   quantity: number;
-}): Promise<string> {
+  razorpay_payment_id: string;
+  razorpay_order_id: string;
+  razorpay_signature: string;
+}) {
+
+  const body = formData.razorpay_order_id + "|" + formData.razorpay_payment_id;
+  const expectedSignature = crypto
+    .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET!)
+    .update(body.toString())
+    .digest("hex");
+
+  if (expectedSignature !== formData.razorpay_signature) {
+    throw new Error('Payment verification failed');
+  }
+
   const event = await getEventById(formData.eventId);
   if (!event) {
     throw new Error('Event not found');
@@ -51,6 +88,7 @@ export async function createBooking(formData: {
     bookingDate: new Date().toISOString(),
     redeemed: false,
     redeemedAt: null,
+    paymentId: formData.razorpay_payment_id,
   };
 
   bookings.push(newBooking);
@@ -105,7 +143,7 @@ export async function getAllBookings() {
 
 export async function generateBookingsCsv() {
     const allBookings = await getAllBookings();
-    const headers = ['Booking ID', 'Event', 'User Name', 'Phone', 'Ticket Tier', 'Quantity', 'Amount', 'Date', 'Redeemed'];
+    const headers = ['Booking ID', 'Event', 'User Name', 'Phone', 'Ticket Tier', 'Quantity', 'Amount', 'Date', 'Redeemed', 'Payment ID'];
     const csvRows = [
         headers.join(','),
         ...allBookings.map(b => [
@@ -118,6 +156,7 @@ export async function generateBookingsCsv() {
             b.totalAmount,
             new Date(b.bookingDate).toLocaleString(),
             b.redeemed,
+            b.paymentId,
         ].join(','))
     ];
     return csvRows.join('\n');
