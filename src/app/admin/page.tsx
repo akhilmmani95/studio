@@ -1,6 +1,6 @@
 import { getAdminDashboardStats } from "@/lib/actions";
 import { DashboardStats } from "@/components/admin/DashboardStats";
-import { Bookings, Landmark, Wallet } from "lucide-react";
+import { BookCopy, Landmark, Wallet } from "lucide-react";
 
 export default async function AdminDashboardPage() {
     const stats = await getAdminDashboardStats();
@@ -15,7 +15,7 @@ export default async function AdminDashboardPage() {
         {
             title: "Total Bookings",
             value: stats.totalBookings.toLocaleString(),
-            icon: Bookings,
+            icon: BookCopy,
             description: "Total number of tickets booked"
         },
         {
