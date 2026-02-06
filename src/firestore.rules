@@ -139,7 +139,7 @@ service cloud.firestore {
         allow list: if isSignedIn() && isEventAdmin(eventId);
         allow create: if incomingBookingDataIsValid(eventId, bookingId);
         allow update: if isSignedIn() && isEventAdmin(eventId) && resource != null && isImmutable('id') && isImmutable('eventId');
-        delete: if isSignedIn() && isEventAdmin(eventId) && resource != null;
+        allow delete: if isSignedIn() && isEventAdmin(eventId) && resource != null;
       }
     }
   }

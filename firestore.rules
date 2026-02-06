@@ -126,15 +126,16 @@ service cloud.firestore {
 
       /**
        * @description
-       *   Bookings for a specific event. Anyone can create a booking (e.g., a public form),
-       *   but only the admin who created the parent event can read, list, update, or delete bookings.
+       *   Bookings for a specific event. Anyone can create a booking (e.g., a public form).
+       *   Anyone with the link can view a specific booking.
+       *   Only the event admin can list, update, or delete bookings.
        * @path /events/{eventId}/bookings/{bookingId}
        * @allow (create) An anonymous user submitting data to create a new booking document.
        * @deny (get) A regular user trying to read booking details for an event.
        * @principle Secures a subcollection by checking ownership data on the parent document.
        */
       match /bookings/{bookingId} {
-        allow get: if isSignedIn() && isEventAdmin(eventId);
+        allow get: if true;
         allow list: if isSignedIn() && isEventAdmin(eventId);
         allow create: if incomingBookingDataIsValid(eventId, bookingId);
         allow update: if isSignedIn() && isEventAdmin(eventId) && resource != null && isImmutable('id') && isImmutable('eventId');
