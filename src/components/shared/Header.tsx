@@ -25,18 +25,7 @@ export function Header() {
             <Logo />
           </div>
           <nav className="hidden items-center gap-4 text-sm font-medium md:flex">
-            <Link
-              href="/admin"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Admin Panel
-            </Link>
-            <Link
-              href="/verify"
-              className="text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Verifier App
-            </Link>
+            {/* Links removed as per your request */}
           </nav>
         </div>
 
@@ -46,18 +35,7 @@ export function Header() {
 
         <div className="flex items-center gap-4">
           <div className="hidden items-center gap-4 md:flex">
-            {!isUserLoading && user && (
-              <Button variant="ghost" size="sm" onClick={handleSignOut}>
-                <LogOut className="mr-2" />
-                Sign Out
-              </Button>
-            )}
-            <Avatar>
-              <AvatarImage src={user?.photoURL || ''} alt="User avatar" />
-              <AvatarFallback>
-                <User />
-              </AvatarFallback>
-            </Avatar>
+            {/* User-specific UI removed */}
           </div>
           <Sheet>
             <SheetTrigger asChild>
@@ -70,22 +48,7 @@ export function Header() {
               <div className="p-6">
                 <Logo />
                 <div className="grid gap-4 py-6">
-                  <Link href="/admin" className="text-lg font-medium">
-                    Admin Panel
-                  </Link>
-                  <Link href="/verify" className="text-lg font-medium">
-                    Verifier App
-                  </Link>
-                  {!isUserLoading && user && (
-                    <Button
-                      variant="ghost"
-                      onClick={handleSignOut}
-                      className="justify-start text-lg"
-                    >
-                      <LogOut className="mr-2" />
-                      Sign Out
-                    </Button>
-                  )}
+                  {/* Admin links removed */}
                 </div>
               </div>
             </SheetContent>
