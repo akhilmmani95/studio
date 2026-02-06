@@ -39,10 +39,24 @@ export default function EventPage() {
   const params = useParams();
   const eventId = params.id as string;
   const firestore = useFirestore();
+
+  if (!eventId) {
+    return (
+        <>
+            <Header />
+            <main className="flex-1">
+                <div className="container py-8 md:py-12">
+                    <EventPageSkeleton />
+                </div>
+            </main>
+        </>
+    );
+  }
+
   const eventRef = useMemoFirebase(() => (firestore && eventId) ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading, error } = useDoc<Event>(eventRef);
 
-  if (isLoading || !eventId) {
+  if (isLoading) {
     return (
         <>
             <Header />

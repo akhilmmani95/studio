@@ -30,8 +30,19 @@ export default function BookingSuccessPage() {
   const params = useParams();
   const eventId = params.eventId as string;
   const bookingId = params.bookingId as string;
-
   const firestore = useFirestore();
+  
+  // Early exit for skeleton if params are not ready.
+  if (!eventId || !bookingId) {
+    return (
+        <>
+            <Header />
+            <main className="flex-1 py-12 md:py-16 bg-secondary/50">
+                <SuccessPageSkeleton />
+            </main>
+        </>
+    );
+  }
 
   const eventRef = useMemoFirebase(() => (firestore && eventId) ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading: isLoadingEvent } = useDoc<Event>(eventRef);
@@ -66,7 +77,7 @@ export default function BookingSuccessPage() {
     document.body.removeChild(link);
   };
 
-  const isLoading = isLoadingEvent || isLoadingBooking || !qrCodeUrl || !eventId || !bookingId;
+  const isLoading = isLoadingEvent || isLoadingBooking || !qrCodeUrl;
   
   if (isLoading) {
     return (
