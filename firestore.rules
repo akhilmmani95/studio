@@ -1,38 +1,30 @@
 /**
- * Core Philosophy: This ruleset implements a role-based access control system centered
- * around 'Admins'. An admin's status is determined by the existence of a document in the
- * /roles_admin collection. Admins have the authority to create and manage events.
+ * Core Philosophy: This ruleset implements an access control system where any
+ * signed-in user can create and manage their own events.
  *
  * Data Structure:
- * - /admins/{adminId}: Private profile data for each admin, accessible only by the admin themselves.
- * - /roles_admin/{adminId}: A collection used for role management. The existence of a document
- *   at /roles_admin/{userId} grants that user admin privileges. This collection is not
- *   writable by clients to ensure security.
+ * - /admins/{adminId}: Private profile data for each user, accessible only by the user themselves.
  * - /events/{eventId}: A public collection of events that anyone can read. Write access is
- *   restricted to the admin who created the event.
+ *   restricted to the user who created the event.
  * - /events/{eventId}/bookings/{bookingId}: A subcollection for bookings related to an event.
  *   Bookings can be created by anyone (e.g., via a public checkout form), but can only be
- *   read or managed by the admin who owns the parent event.
+ *   read or managed by the user who owns the parent event.
  *
  * Key Security Decisions:
- * - Admin Role Management: The /roles_admin collection is read-only for clients. Roles must be
- *   assigned out-of-band (e.g., via the Firebase Console or a trusted server-side process).
- *   This prevents users from elevating their own privileges.
  * - Public vs. Private Data: The /events collection is publicly readable to allow users to
- *   browse events. All other data, including admin profiles and event bookings, is private
+ *   browse events. All other data, including user profiles and event bookings, is private
  *   and requires specific authorization to access.
  * - Default Deny: All operations are denied by default. Access is only granted through
  *   explicit 'allow' statements.
  *
  * Denormalization for Authorization:
- * - The `events` collection contains a denormalized `adminId` field. This allows security
- *   rules to verify event ownership directly from the event document without needing to perform
- *   extra reads, resulting in faster and more efficient rule execution.
+ * - The `events` collection contains a denormalized `adminId` field (representing the creator's UID).
+ *   This allows security rules to verify event ownership directly from the event document without
+ *   needing to perform extra reads, resulting in faster and more efficient rule execution.
  *
  * Structural Segregation:
- * - Public event data (/events) is stored separately from private admin data (/admins) and
- *   role data (/roles_admin). This clear separation simplifies rules and prevents accidental
- *   data leakage through list queries.
+ * - Public event data (/events) is stored separately from private user data (/admins). This clear
+ *   separation simplifies rules and prevents accidental data leakage through list queries.
  */
 rules_version = '2';
 service cloud.firestore {
@@ -53,14 +45,6 @@ service cloud.firestore {
      */
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
-    }
-    
-    /**
-     * Checks if the requesting user has an admin role.
-     * Admin status is granted if a document with the user's UID exists in the /roles_admin collection.
-     */
-    function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
 
     /**
@@ -126,37 +110,19 @@ service cloud.firestore {
 
     /**
      * @description
-     *   Role-granting documents. The existence of a document here makes a user an admin.
-     *   This collection is locked down from all client-side operations to prevent users from
-     *   escalating their own privileges. Roles must be managed via the server or Firebase Console.
-     * @path /roles_admin/{adminId}
-     * @allow (none) No client operation is permitted.
-     * @deny (create) Any user trying to create a document to make themselves an admin.
-     * @principle Prevents privilege escalation by making role assignments a server-side-only operation.
-     */
-    match /roles_admin/{adminId} {
-      allow get: if false;
-      allow list: if false;
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
-    }
-
-    /**
-     * @description
-     *   Publicly readable event data. Anyone can view events, but only an authenticated admin
+     *   Publicly readable event data. Anyone can view events, but only a signed-in user
      *   can create events, and only the original creator can update or delete them.
      * @path /events/{eventId}
      * @allow (list) Any user, signed in or not, listing all documents in the /events collection.
-     * @deny (create) A non-admin user trying to create a new event.
-     * @principle Implements a "Public Read with Owner-Only Writes" pattern, enforced by an admin role check.
+     * @deny (create) An unauthenticated user trying to create a new event.
+     * @principle Implements a "Public Read with Owner-Only Writes" pattern.
      */
     match /events/{eventId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isAdmin() && incomingEventDataIsValid(eventId);
-      allow update: if isAdmin() && isOwner(resource.data.adminId) && resource != null && isImmutable('id') && isImmutable('adminId');
-      allow delete: if isAdmin() && isOwner(resource.data.adminId) && resource != null;
+      allow create: if isSignedIn() && incomingEventDataIsValid(eventId);
+      allow update: if isSignedIn() && isOwner(resource.data.adminId) && resource != null && isImmutable('id') && isImmutable('adminId');
+      allow delete: if isSignedIn() && isOwner(resource.data.adminId) && resource != null;
 
       /**
        * @description
@@ -168,11 +134,11 @@ service cloud.firestore {
        * @principle Secures a subcollection by checking ownership data on the parent document.
        */
       match /bookings/{bookingId} {
-        allow get: if isAdmin() && isEventAdmin(eventId);
-        allow list: if isAdmin() && isEventAdmin(eventId);
+        allow get: if isSignedIn() && isEventAdmin(eventId);
+        allow list: if isSignedIn() && isEventAdmin(eventId);
         allow create: if incomingBookingDataIsValid(eventId, bookingId);
-        allow update: if isAdmin() && isEventAdmin(eventId) && resource != null && isImmutable('id') && isImmutable('eventId');
-        allow delete: if isAdmin() && isEventAdmin(eventId) && resource != null;
+        allow update: if isSignedIn() && isEventAdmin(eventId) && resource != null && isImmutable('id') && isImmutable('eventId');
+        allow delete: if isSignedIn() && isEventAdmin(eventId) && resource != null;
       }
     }
   }
