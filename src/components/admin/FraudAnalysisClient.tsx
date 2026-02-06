@@ -29,7 +29,7 @@ import {
   analyzeBookingPatterns,
   type FraudAnalysisOutput,
 } from '@/ai/flows/fraud-prevention';
-import { Loader2, AlertTriangle, ShieldCheck } from 'lucide-radix';
+import { Loader2, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 
 export function FraudAnalysisClient() {

@@ -17,7 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Calendar as CalendarIcon, Loader2 } from 'lucide-radix';
+import { Calendar as CalendarIcon, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { EventSchema } from '@/lib/schemas';
 import { createEvent } from '@/lib/actions';
