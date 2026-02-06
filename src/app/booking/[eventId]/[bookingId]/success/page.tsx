@@ -66,7 +66,7 @@ export default function BookingSuccessPage() {
     document.body.removeChild(link);
   };
 
-  const isLoading = isLoadingEvent || isLoadingBooking || !qrCodeUrl;
+  const isLoading = isLoadingEvent || isLoadingBooking || !qrCodeUrl || !eventId || !bookingId;
   
   if (isLoading) {
     return (
