@@ -1,6 +1,6 @@
 'use client';
 
-import { notFound } from 'next/navigation';
+import { notFound, useParams } from 'next/navigation';
 import Image from 'next/image';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
@@ -11,12 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import type { Event } from '@/lib/types';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Skeleton } from '@/components/ui/skeleton';
-
-type EventPageProps = {
-  params: {
-    id: string;
-  };
-};
 
 function EventPageSkeleton() {
     return (
@@ -41,9 +35,11 @@ function EventPageSkeleton() {
     )
 }
 
-export default function EventPage({ params }: EventPageProps) {
+export default function EventPage() {
+  const params = useParams();
+  const eventId = params.id as string;
   const firestore = useFirestore();
-  const eventRef = useMemoFirebase(() => firestore ? doc(firestore, 'events', params.id) : null, [firestore, params.id]);
+  const eventRef = useMemoFirebase(() => firestore ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading, error } = useDoc<Event>(eventRef);
 
   if (isLoading) {
