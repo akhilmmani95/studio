@@ -7,7 +7,7 @@ import { PlaceHolderImages } from './placeholder-images';
 import { notFound } from 'next/navigation';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
-import type { Booking, Event } from './types';
+import type { Booking, Event, JWTPayload } from './types';
 
 // In a real production app, you would fetch from Firestore here using the Admin SDK.
 // Since we are limited to the client-side SDK for this project,
@@ -56,6 +56,10 @@ export async function verifyRazorpayPayment(data: {
     revalidatePath('/admin');
     
     return { success: true };
+}
+
+export async function generateTicketJwt(payload: Omit<JWTPayload, 'iat'>): Promise<string> {
+    return signPayload(payload);
 }
 
 

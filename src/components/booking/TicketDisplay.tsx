@@ -1,33 +1,24 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import QRCode from 'qrcode';
 import Image from 'next/image';
 import type { Booking, Event, TicketTier } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, MapPin, User, Ticket as TicketIcon } from 'lucide-react';
+import { MapPin, User, Ticket as TicketIcon } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 type TicketDisplayProps = {
   booking: Booking;
   event: Event & { imageUrl: string };
   ticketTier: TicketTier | undefined;
-  jwt: string;
+  qrCodeUrl: string;
 };
 
 export function TicketDisplay({
   booking,
   event,
   ticketTier,
-  jwt,
+  qrCodeUrl,
 }: TicketDisplayProps) {
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
-
-  useEffect(() => {
-    QRCode.toDataURL(jwt, { width: 400, margin: 2 })
-      .then(setQrCodeUrl)
-      .catch(console.error);
-  }, [jwt]);
 
   return (
     <Card className="overflow-hidden shadow-2xl shadow-primary/10">
@@ -71,7 +62,7 @@ export function TicketDisplay({
                     </div>
                 </div>
                 <div className="flex items-center gap-3">
-                    <Calendar className="w-5 h-5 text-primary" />
+                    <User className="w-5 h-5 text-primary" />
                     <div>
                         <p className="text-sm text-muted-foreground">Booking ID</p>
                         <p className="font-semibold font-mono text-xs">{booking.id}</p>

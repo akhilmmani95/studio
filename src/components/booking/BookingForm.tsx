@@ -124,7 +124,7 @@ export function BookingForm({ event }: BookingFormProps) {
 
             await setDoc(newBookingRef, newBooking);
             
-            router.push(`/booking/${newBooking.id}/success`);
+            router.push(`/booking/${event.id}/${newBooking.id}/success`);
 
           } catch (error) {
             console.error(error);
