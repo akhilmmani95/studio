@@ -11,21 +11,11 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { generateBookingsCsv } from '@/lib/actions';
 import { Download, Check, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import type { Booking } from '@/lib/types';
 
-type BookingWithEvent = {
-    id: string;
-    eventId: string;
-    userName: string;
-    phone: string;
-    ticketTierId: string;
-    quantity: number;
-    totalAmount: number;
-    bookingDate: string;
-    redeemed: boolean;
-    redeemedAt: string | null;
+type BookingWithEvent = Booking & {
     eventName: string;
     ticketTierName: string;
 };
@@ -34,13 +24,33 @@ type BookingsClientProps = {
   bookings: BookingWithEvent[];
 };
 
+function generateBookingsCsv(bookings: BookingWithEvent[]) {
+    const headers = ['Booking ID', 'Event', 'User Name', 'Phone', 'Ticket Tier', 'Quantity', 'Amount', 'Date', 'Redeemed', 'Payment ID'];
+    const csvRows = [
+        headers.join(','),
+        ...bookings.map(b => [
+            b.id,
+            `"${b.eventName}"`,
+            `"${b.userName}"`,
+            b.phone,
+            `"${b.ticketTierName}"`,
+            b.quantity,
+            b.totalAmount,
+            new Date(b.bookingDate).toLocaleString(),
+            b.redeemed,
+            b.paymentId,
+        ].join(','))
+    ];
+    return csvRows.join('\n');
+}
+
 export function BookingsClient({ bookings }: BookingsClientProps) {
   const [isDownloading, setIsDownloading] = useState(false);
 
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      const csvData = await generateBookingsCsv();
+      const csvData = generateBookingsCsv(bookings);
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');

@@ -10,21 +10,23 @@ import {
 import { Button } from '@/components/ui/button';
 import type { Event } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { getPlaceholderImageById } from '@/lib/actions';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 type EventCardProps = {
   event: Event;
 };
 
-export async function EventCard({ event }: EventCardProps) {
-  const eventImage = await getPlaceholderImageById(event.image);
-  const minPrice = Math.min(...event.ticketTiers.map((t) => t.price));
+export function EventCard({ event }: EventCardProps) {
+  const eventImage = PlaceHolderImages.find(img => img.id === event.image);
+  const minPrice = event.ticketTiers.length > 0
+    ? Math.min(...event.ticketTiers.map((t) => t.price))
+    : 0;
 
   return (
     <Card className="flex flex-col overflow-hidden h-full transition-all hover:shadow-lg hover:-translate-y-1">
       <CardHeader className="p-0">
         <Link href={`/events/${event.id}`} className="block">
-          <div className="aspect-[3/2] relative">
+          <div className="aspect-[3/2] relative bg-muted">
             {eventImage && (
               <Image
                 src={eventImage.imageUrl}

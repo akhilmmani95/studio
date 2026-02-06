@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { doc, collection, setDoc } from 'firebase/firestore';
 
-import type { Event, TicketTier } from '@/lib/types';
+import type { Event, TicketTier, Booking } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -34,8 +36,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Minus, Plus, Ticket } from 'lucide-react';
 import { BookingSchema } from '@/lib/schemas';
-import { createBooking, createRazorpayOrder } from '@/lib/actions';
+import { createRazorpayOrder, verifyRazorpayPayment } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore } from '@/firebase';
 
 type BookingFormProps = {
   event: Event;
@@ -51,6 +54,8 @@ declare global {
 
 export function BookingForm({ event }: BookingFormProps) {
   const { toast } = useToast();
+  const router = useRouter();
+  const firestore = useFirestore();
   const [selectedTier, setSelectedTier] = useState<TicketTier>(event.ticketTiers[0]);
   const [quantity, setQuantity] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -73,6 +78,11 @@ export function BookingForm({ event }: BookingFormProps) {
   const totalAmount = selectedTier.price * quantity;
 
   async function handlePayment(data: z.infer<typeof CheckoutFormSchema>) {
+    if (!firestore) {
+        toast({ title: "Error", description: "Database not available.", variant: "destructive"});
+        return;
+    }
+
     setIsSubmitting(true);
     
     try {
@@ -90,16 +100,32 @@ export function BookingForm({ event }: BookingFormProps) {
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
-            await createBooking({
-              ...data,
-              eventId: event.id,
-              ticketTierId: selectedTier.id,
-              quantity: quantity,
-              razorpay_payment_id: response.razorpay_payment_id,
-              razorpay_order_id: response.razorpay_order_id,
-              razorpay_signature: response.razorpay_signature,
+            await verifyRazorpayPayment({
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_signature: response.razorpay_signature,
             });
-            // Redirect is handled by createBooking server action
+
+            // Payment verified, now create booking in Firestore
+            const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
+            const newBooking: Booking = {
+                id: newBookingRef.id,
+                eventId: event.id,
+                userName: data.name,
+                phone: data.phone,
+                ticketTierId: selectedTier.id,
+                quantity: quantity,
+                totalAmount: totalAmount,
+                bookingDate: new Date().toISOString(),
+                redeemed: false,
+                redeemedAt: null,
+                paymentId: response.razorpay_payment_id,
+            };
+
+            await setDoc(newBookingRef, newBooking);
+            
+            router.push(`/booking/${newBooking.id}/success`);
+
           } catch (error) {
             console.error(error);
             toast({

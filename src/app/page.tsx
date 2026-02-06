@@ -1,9 +1,36 @@
-import { getEvents } from '@/lib/actions';
+'use client';
+
+import { useCollection, useFirestore, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import type { Event } from '@/lib/types';
 import { EventCard } from '@/components/events/EventCard';
 import { Header } from '@/components/shared/Header';
+import { Skeleton } from '@/components/ui/skeleton';
 
-export default async function Home() {
-  const events = await getEvents();
+function EventGridSkeleton() {
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i}>
+                    <Skeleton className="aspect-[3/2] w-full" />
+                    <div className="p-4 space-y-2">
+                        <Skeleton className="h-6 w-3/4" />
+                        <Skeleton className="h-4 w-1/2" />
+                        <Skeleton className="h-4 w-1/2" />
+                    </div>
+                     <div className="p-4 pt-0">
+                         <Skeleton className="h-12 w-full" />
+                     </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
+export default function Home() {
+  const firestore = useFirestore();
+  const eventsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'events') : null, [firestore]);
+  const { data: events, isLoading } = useCollection<Event>(eventsQuery);
 
   return (
     <>
@@ -18,12 +45,17 @@ export default async function Home() {
               Discover and book tickets for the most exciting events in town. From music festivals to comedy shows, your next great experience starts here.
             </p>
           </div>
+          
+          {isLoading || !events ? (
+              <EventGridSkeleton/>
+          ) : (
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {events.map((event) => (
+                    <EventCard key={event.id} event={event} />
+                ))}
+            </div>
+          )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {events.map((event) => (
-              <EventCard key={event.id} event={event} />
-            ))}
-          </div>
         </section>
       </main>
     </>

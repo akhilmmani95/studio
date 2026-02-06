@@ -21,14 +21,19 @@ import { cn } from '@/lib/utils';
 import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { EventSchema } from '@/lib/schemas';
-import { createEvent } from '@/lib/actions';
 import { useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
+import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { collection, doc, setDoc } from 'firebase/firestore';
+import type { Event } from '@/lib/types';
+
 
 export function CreateEventForm() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
+  const { user } = useUser();
+  const firestore = useFirestore();
 
   const form = useForm<z.infer<typeof EventSchema>>({
     resolver: zodResolver(EventSchema),
@@ -47,18 +52,44 @@ export function CreateEventForm() {
   });
 
   function onSubmit(values: z.infer<typeof EventSchema>) {
+    if (!user || !firestore) {
+      toast({
+        title: "Authentication Error",
+        description: "You must be logged in to create an event.",
+        variant: "destructive"
+      });
+      return;
+    }
     startTransition(async () => {
       try {
-        await createEvent(values);
+        const eventsCollection = collection(firestore, 'events');
+        const newEventRef = doc(eventsCollection);
+        const newEventId = newEventRef.id;
+
+        const newEvent: Event = {
+          ...values,
+          id: newEventId,
+          adminId: user.uid,
+          date: values.date.toISOString(),
+          image: `event-${Math.floor(Math.random() * 6) + 1}`, // Cycle through placeholder images
+          ticketTiers: values.ticketTiers.map((tier, i) => ({
+              ...tier,
+              id: `tier-${i + 1}-${Date.now()}`,
+          })),
+        };
+
+        await setDoc(newEventRef, newEvent);
+
         form.reset();
         toast({
             title: "Event Created!",
             description: "Your new event has been added successfully."
         });
-      } catch (error) {
+      } catch (error: any) {
+        console.error("Failed to create event", error);
         toast({
             title: "Error",
-            description: "Failed to create event. Please try again.",
+            description: error.message || "Failed to create event. Please try again.",
             variant: 'destructive'
         })
       }

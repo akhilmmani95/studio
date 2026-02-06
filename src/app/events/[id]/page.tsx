@@ -1,10 +1,16 @@
+'use client';
+
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
-import { getEventById, getPlaceholderImageById } from '@/lib/actions';
+import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 import { Header } from '@/components/shared/Header';
 import { BookingForm } from '@/components/booking/BookingForm';
-import { Calendar, MapPin, Ticket } from 'lucide-react';
+import { Calendar, MapPin, Ticket, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
+import type { Event } from '@/lib/types';
+import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type EventPageProps = {
   params: {
@@ -12,14 +18,53 @@ type EventPageProps = {
   };
 };
 
-export default async function EventPage({ params }: EventPageProps) {
-  const event = await getEventById(params.id);
+function EventPageSkeleton() {
+    return (
+        <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
+            <div className="md:col-span-3">
+                <Skeleton className="aspect-[16/9] w-full rounded-lg mb-6" />
+                <Skeleton className="h-10 w-3/4 mb-4" />
+                <div className="flex gap-4 mb-6">
+                    <Skeleton className="h-6 w-1/2" />
+                    <Skeleton className="h-6 w-1/3" />
+                </div>
+                <div className="space-y-3">
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-full" />
+                    <Skeleton className="h-5 w-4/5" />
+                </div>
+            </div>
+            <div className="md:col-span-2">
+                <Skeleton className="h-[500px] w-full rounded-lg" />
+            </div>
+        </div>
+    )
+}
 
-  if (!event) {
+export default function EventPage({ params }: EventPageProps) {
+  const firestore = useFirestore();
+  const eventRef = useMemoFirebase(() => firestore ? doc(firestore, 'events', params.id) : null, [firestore, params.id]);
+  const { data: event, isLoading, error } = useDoc<Event>(eventRef);
+
+  if (isLoading) {
+    return (
+        <>
+            <Header />
+            <main className="flex-1">
+                <div className="container py-8 md:py-12">
+                    <EventPageSkeleton />
+                </div>
+            </main>
+        </>
+    );
+  }
+
+  if (!event || error) {
+    // This will be caught by the not-found mechanism in Next.js
     notFound();
   }
 
-  const eventImage = await getPlaceholderImageById(event.image);
+  const eventImage = PlaceHolderImages.find(img => img.id === event.image);
 
   return (
     <>
@@ -28,7 +73,7 @@ export default async function EventPage({ params }: EventPageProps) {
         <div className="container py-8 md:py-12">
           <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
             <div className="md:col-span-3">
-              <div className="aspect-[16/9] relative rounded-lg overflow-hidden mb-6 shadow-lg">
+              <div className="aspect-[16/9] relative rounded-lg overflow-hidden mb-6 shadow-lg bg-muted">
                 {eventImage && (
                   <Image
                     src={eventImage.imageUrl}
@@ -50,7 +95,6 @@ export default async function EventPage({ params }: EventPageProps) {
                   <MapPin className="w-5 h-5 text-primary" />
                   <span className="font-medium">{event.venue}</span>
                 </div>
-
               </div>
               <div className="prose dark:prose-invert max-w-none text-lg">
                 <p>{event.description}</p>

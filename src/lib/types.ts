@@ -13,6 +13,7 @@ export type Event = {
   description: string;
   image: string;
   ticketTiers: TicketTier[];
+  adminId: string;
 };
 
 export type Booking = {

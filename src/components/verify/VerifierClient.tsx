@@ -7,10 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { verifyPayload } from '@/lib/jwt';
-import { markAsRedeemed } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { CheckCircle, XCircle, ScanLine, AlertTriangle, Loader2 } from 'lucide-react';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
+import { useFirestore, useUser } from '@/firebase';
+import { doc, updateDoc } from 'firebase/firestore';
 
 type VerificationResult = {
     status: 'valid' | 'invalid' | 'redeemed';
@@ -21,6 +22,7 @@ type VerificationResult = {
 
 export function VerifierClient() {
   const { toast } = useToast();
+  const firestore = useFirestore();
   const [validJwts, setValidJwts] = useState<string[]>([]);
   const [redeemedIds, setRedeemedIds] = useState<Set<string>>(new Set());
   const [scannedJwt, setScannedJwt] = useState('');
@@ -54,9 +56,20 @@ export function VerifierClient() {
         setResult({ status: 'redeemed', message: `This ticket has already been redeemed on this device.` });
     } else {
       setRedeemedIds(prev => new Set(prev).add(payload.bookingId));
-      markAsRedeemed(payload.bookingId).catch(err => {
-          console.error("Failed to sync redemption to server.", err);
-      });
+      
+      // Mark as redeemed in Firestore
+      if(firestore) {
+          const bookingRef = doc(firestore, `events/${payload.eventId}/bookings`, payload.bookingId);
+          updateDoc(bookingRef, {
+              redeemed: true,
+              redeemedAt: new Date().toISOString()
+          }).catch(err => {
+              console.error("Failed to sync redemption to server.", err);
+              // The redemption is still stored locally for this session.
+              // A more robust app might have a retry queue.
+          });
+      }
+
       setResult({ status: 'valid', message: 'Ticket is valid and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
     }
     
@@ -67,7 +80,7 @@ export function VerifierClient() {
         setResult(null);
         setIsScanning(true); // Resume scanning
     }, 4000);
-  }, [toast, validJwts, redeemedIds]);
+  }, [toast, validJwts, redeemedIds, firestore]);
 
   useEffect(() => {
     const getCameraPermission = async () => {
