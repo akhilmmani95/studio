@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import jsQR from 'jsqr';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -28,6 +29,45 @@ export function VerifierClient() {
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isScanning, setIsScanning] = useState(true);
+
+  const handleVerify = useCallback(async (jwtToVerify: string) => {
+    if (!jwtToVerify) {
+        toast({ title: 'Error', description: 'No ticket code provided.', variant: 'destructive'});
+        return;
+    }
+
+    setIsScanning(false);
+    setIsVerifying(true);
+    setResult(null);
+
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const payload = verifyPayload(jwtToVerify);
+
+    if (!payload) {
+      setResult({ status: 'invalid', message: 'Invalid or tampered ticket code.' });
+    } else if (!validJwts.includes(jwtToVerify)) {
+        setResult({ status: 'invalid', message: 'Ticket not found. It may be invalid or not synced.'});
+    } else if (redeemedIds.has(payload.bookingId)) {
+        setResult({ status: 'redeemed', message: `This ticket has already been redeemed on this device.` });
+    } else {
+      setRedeemedIds(prev => new Set(prev).add(payload.bookingId));
+      markAsRedeemed(payload.bookingId).catch(err => {
+          console.error("Failed to sync redemption to server.", err);
+      });
+      setResult({ status: 'valid', message: 'Ticket is valid and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
+    }
+    
+    setScannedJwt('');
+    setIsVerifying(false);
+    
+    setTimeout(() => {
+        setResult(null);
+        setIsScanning(true); // Resume scanning
+    }, 4000);
+  }, [toast, validJwts, redeemedIds]);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -59,6 +99,49 @@ export function VerifierClient() {
     getCameraPermission();
   }, [toast]);
 
+  useEffect(() => {
+    if (hasCameraPermission !== true || !isScanning || isVerifying || result) {
+      return;
+    }
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas) {
+      return;
+    }
+
+    const context = canvas.getContext('2d', { willReadFrequently: true });
+    if (!context) {
+      return;
+    }
+
+    let animationFrameId: number;
+
+    const scanLoop = () => {
+      if (!isScanning || video.readyState !== video.HAVE_ENOUGH_DATA) {
+        return;
+      }
+
+      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+      if (code && code.data) {
+        handleVerify(code.data);
+      } else {
+        animationFrameId = requestAnimationFrame(scanLoop);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(scanLoop);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [hasCameraPermission, isScanning, isVerifying, result, handleVerify]);
+
 
   const handleSync = (data: string) => {
     const jwts = data.split('\n').filter(Boolean);
@@ -68,52 +151,6 @@ export function VerifierClient() {
       title: 'Sync Complete',
       description: `${jwts.length} tickets loaded into the verifier.`,
     });
-  };
-
-  const handleVerify = async (jwtToVerify: string) => {
-    if (!jwtToVerify) {
-        toast({ title: 'Error', description: 'No ticket code provided.', variant: 'destructive'});
-        return;
-    }
-
-    setIsVerifying(true);
-    setResult(null);
-
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const payload = verifyPayload(jwtToVerify);
-
-    if (!payload) {
-      setResult({ status: 'invalid', message: 'Invalid or tampered ticket code.' });
-      setIsVerifying(false);
-      return;
-    }
-
-    if (!validJwts.includes(jwtToVerify)) {
-        setResult({ status: 'invalid', message: 'Ticket not found. It may be invalid or not synced.'});
-        setIsVerifying(false);
-        return;
-    }
-    
-    if (redeemedIds.has(payload.bookingId)) {
-        setResult({ status: 'redeemed', message: `This ticket has already been redeemed on this device.` });
-        setIsVerifying(false);
-        return;
-    }
-    
-    setRedeemedIds(prev => new Set(prev).add(payload.bookingId));
-
-    markAsRedeemed(payload.bookingId).catch(err => {
-        console.error("Failed to sync redemption to server.", err);
-    });
-
-    setResult({ status: 'valid', message: 'Ticket is valid and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
-    setScannedJwt('');
-    setIsVerifying(false);
-    
-    setTimeout(() => {
-        setResult(null);
-    }, 4000);
   };
 
   const VerificationScreen = () => {
@@ -148,77 +185,80 @@ export function VerifierClient() {
   }
 
   return (
-    <Tabs defaultValue="scanner" className="w-full">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="scanner">Scanner</TabsTrigger>
-        <TabsTrigger value="sync">Sync Data</TabsTrigger>
-      </TabsList>
-      <TabsContent value="scanner">
-        <Card>
-          <CardHeader>
-            <CardTitle>Ticket Scanner</CardTitle>
-            <CardDescription>
-                The camera is active for QR code scanning. For now, please paste the code manually below.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-                <div className="bg-muted rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
-                    <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-                    {hasCameraPermission === false && (
-                         <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4">
-                            <Alert variant="destructive" className="w-auto">
-                                <AlertTriangle className="h-4 w-4" />
-                                <AlertTitle>Camera Access Required</AlertTitle>
-                                <AlertDescription>
-                                    Please allow camera access to use this feature.
-                                </AlertDescription>
-                            </Alert>
-                        </div>
-                    )}
-                     {hasCameraPermission === null && (
-                         <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
-                            <Loader2 className="h-8 w-8 animate-spin" />
-                         </div>
-                     )}
-                     <VerificationScreen />
-                </div>
-                 <div className="space-y-2">
-                    <Textarea
-                        placeholder="Or paste QR code data here..."
-                        value={scannedJwt}
-                        onChange={(e) => setScannedJwt(e.target.value)}
-                        className="h-24"
-                    />
-                    <Button onClick={() => handleVerify(scannedJwt)} className="w-full" size="lg" disabled={isVerifying || !scannedJwt}>
-                        <ScanLine className="mr-2 h-5 w-5" />
-                        Verify Manually
-                    </Button>
-                </div>
-            </div>
-          </CardContent>
-        </Card>
-      </TabsContent>
-      <TabsContent value="sync">
-        <Card>
-          <CardHeader>
-            <CardTitle>Sync Ticket Data</CardTitle>
-            <CardDescription>
-              Copy the JWT data from the admin panel and paste it here to enable offline verification.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Textarea
-              placeholder="Paste JWT data from admin panel..."
-              className="h-64 font-mono text-xs"
-              onChange={(e) => handleSync(e.target.value)}
-            />
-            <p className='text-sm text-muted-foreground'>
-                Currently synced tickets: <strong>{validJwts.length}</strong> | Redeemed on this device: <strong>{redeemedIds.size}</strong>
-            </p>
-          </CardContent>
-        </Card>
-      </TabsContent>
-    </Tabs>
+    <>
+      <canvas ref={canvasRef} className="hidden" />
+      <Tabs defaultValue="scanner" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="scanner">Scanner</TabsTrigger>
+          <TabsTrigger value="sync">Sync Data</TabsTrigger>
+        </TabsList>
+        <TabsContent value="scanner">
+          <Card>
+            <CardHeader>
+              <CardTitle>Ticket Scanner</CardTitle>
+              <CardDescription>
+                  Point the camera at a ticket's QR code to verify it.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                  <div className="bg-muted rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
+                      <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                      {hasCameraPermission === false && (
+                           <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4">
+                              <Alert variant="destructive" className="w-auto">
+                                  <AlertTriangle className="h-4 w-4" />
+                                  <AlertTitle>Camera Access Required</AlertTitle>
+                                  <AlertDescription>
+                                      Please allow camera access to use this feature.
+                                  </AlertDescription>
+                              </Alert>
+                          </div>
+                      )}
+                       {hasCameraPermission === null && (
+                           <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                              <Loader2 className="h-8 w-8 animate-spin" />
+                           </div>
+                       )}
+                       <VerificationScreen />
+                  </div>
+                   <div className="space-y-2">
+                      <Textarea
+                          placeholder="Or paste QR code data here..."
+                          value={scannedJwt}
+                          onChange={(e) => setScannedJwt(e.target.value)}
+                          className="h-24"
+                      />
+                      <Button onClick={() => handleVerify(scannedJwt)} className="w-full" size="lg" disabled={isVerifying || !scannedJwt}>
+                          <ScanLine className="mr-2 h-5 w-5" />
+                          Verify Manually
+                      </Button>
+                  </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+        <TabsContent value="sync">
+          <Card>
+            <CardHeader>
+              <CardTitle>Sync Ticket Data</CardTitle>
+              <CardDescription>
+                Copy the JWT data from the admin panel and paste it here to enable offline verification.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Textarea
+                placeholder="Paste JWT data from admin panel..."
+                className="h-64 font-mono text-xs"
+                onChange={(e) => handleSync(e.target.value)}
+              />
+              <p className='text-sm text-muted-foreground'>
+                  Currently synced tickets: <strong>{validJwts.length}</strong> | Redeemed on this device: <strong>{redeemedIds.size}</strong>
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </>
   );
 }
