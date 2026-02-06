@@ -100,31 +100,35 @@ export function BookingForm({ event }: BookingFormProps) {
         order_id: orderData.id,
         handler: async function (response: any) {
           try {
-            await verifyRazorpayPayment({
+            const verification = await verifyRazorpayPayment({
                 razorpay_payment_id: response.razorpay_payment_id,
                 razorpay_order_id: response.razorpay_order_id,
                 razorpay_signature: response.razorpay_signature,
             });
 
-            // Payment verified, now create booking in Firestore
-            const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
-            const newBooking: Booking = {
-                id: newBookingRef.id,
-                eventId: event.id,
-                userName: data.name,
-                phone: data.phone,
-                ticketTierId: selectedTier.id,
-                quantity: quantity,
-                totalAmount: totalAmount,
-                bookingDate: new Date().toISOString(),
-                redeemed: false,
-                redeemedAt: null,
-                paymentId: response.razorpay_payment_id,
-            };
+            if (verification?.success) {
+                // Payment verified, now create booking in Firestore
+                const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
+                const newBooking: Booking = {
+                    id: newBookingRef.id,
+                    eventId: event.id,
+                    userName: data.name,
+                    phone: data.phone,
+                    ticketTierId: selectedTier.id,
+                    quantity: quantity,
+                    totalAmount: totalAmount,
+                    bookingDate: new Date().toISOString(),
+                    redeemed: false,
+                    redeemedAt: null,
+                    paymentId: response.razorpay_payment_id,
+                };
 
-            await setDoc(newBookingRef, newBooking);
-            
-            router.push(`/booking/${event.id}/${newBooking.id}/success`);
+                await setDoc(newBookingRef, newBooking);
+                
+                router.push(`/booking/${event.id}/${newBooking.id}/success`);
+            } else {
+                 throw new Error("Payment verification failed.");
+            }
 
           } catch (error) {
             console.error(error);
