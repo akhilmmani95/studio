@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
+import { FirebaseClientProvider } from '@/firebase';
 
 const fontBody = Inter({
   subsets: ['latin'],
@@ -25,15 +26,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={cn("h-full", fontBody.variable, fontHeadline.variable)} suppressHydrationWarning={true}>
+    <html
+      lang="en"
+      className={cn('h-full', fontBody.variable, fontHeadline.variable)}
+      suppressHydrationWarning={true}
+    >
       <head>
         <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
       </head>
       <body className={cn('antialiased font-body')} suppressHydrationWarning={true}>
-        <div className="relative flex min-h-screen flex-col">
-          {children}
-        </div>
-        <Toaster />
+        <FirebaseClientProvider>
+          <div className="relative flex min-h-screen flex-col">{children}</div>
+          <Toaster />
+        </FirebaseClientProvider>
       </body>
     </html>
   );

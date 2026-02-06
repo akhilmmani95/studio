@@ -18,7 +18,10 @@ import {
   ShieldAlert,
   QrCode,
   Home,
+  LogOut,
 } from 'lucide-react';
+import { useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 
 const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
@@ -30,6 +33,7 @@ const navItems = [
 
 export function AdminNav() {
   const pathname = usePathname();
+  const auth = useAuth();
 
   return (
     <>
@@ -42,10 +46,7 @@ export function AdminNav() {
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={pathname === item.href}
-              >
+              <SidebarMenuButton asChild isActive={pathname === item.href}>
                 <Link href={item.href}>
                   <item.icon />
                   <span>{item.label}</span>
@@ -57,16 +58,20 @@ export function AdminNav() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-              >
-                <Link href="/">
-                  <Home />
-                  <span>Back to Site</span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton asChild>
+              <Link href="/">
+                <Home />
+                <span>Back to Site</span>
+              </Link>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+          <SidebarMenuItem>
+            <SidebarMenuButton onClick={() => signOut(auth)}>
+              <LogOut />
+              <span>Sign Out</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
     </>
