@@ -18,8 +18,9 @@ type VerificationResult = {
     status: 'valid' | 'invalid' | 'redeemed';
     message: string;
     bookingId?: string;
-    eventId?: string;
-}
+    userName?: string;
+    quantity?: number;
+};
 
 export function VerifierClient() {
   const { toast } = useToast();
@@ -65,14 +66,26 @@ export function VerifierClient() {
             } else {
                 const bookingData = bookingSnap.data() as Booking;
                 if (bookingData.redeemed) {
-                    setResult({ status: 'redeemed', message: `Ticket was already redeemed at ${new Date(bookingData.redeemedAt!).toLocaleString()}.` });
+                    setResult({ 
+                        status: 'redeemed', 
+                        message: `Ticket was already redeemed at ${new Date(bookingData.redeemedAt!).toLocaleString()}.`,
+                        bookingId: bookingData.id,
+                        userName: bookingData.userName,
+                        quantity: bookingData.quantity
+                    });
                 } else {
                     // Valid and found online, now redeem it
                     await updateDoc(bookingRef, {
                         redeemed: true,
                         redeemedAt: new Date().toISOString()
                     });
-                    setResult({ status: 'valid', message: 'Ticket is valid and has been redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
+                    setResult({ 
+                        status: 'valid', 
+                        message: 'Ticket is valid and has been redeemed.',
+                        bookingId: bookingData.id,
+                        userName: bookingData.userName,
+                        quantity: bookingData.quantity
+                    });
                 }
             }
         } catch (error) {
@@ -88,7 +101,7 @@ export function VerifierClient() {
     setTimeout(() => {
         setResult(null);
         setIsScanning(true); 
-    }, 4000);
+    }, 5000);
   }, [toast, firestore]);
 
   // Camera permission logic
@@ -179,13 +192,46 @@ export function VerifierClient() {
     let content;
     switch(result.status) {
         case 'valid':
-            content = <div className="text-green-500 flex flex-col items-center text-center"><CheckCircle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">VALID</h2><p className="text-sm mt-2">{result.bookingId}</p></div>;
+            content = (
+                <div className="text-green-500 flex flex-col items-center text-center">
+                    <CheckCircle className="h-24 w-24" />
+                    <h2 className="text-4xl font-bold mt-4">VALID</h2>
+                    <div className="mt-6 text-foreground bg-background/50 p-4 rounded-lg w-full max-w-sm">
+                        <div className="flex justify-between text-lg">
+                            <span className="text-muted-foreground">Name:</span>
+                            <span className="font-bold">{result.userName}</span>
+                        </div>
+                        <div className="flex justify-between text-lg mt-2">
+                            <span className="text-muted-foreground">Guests:</span>
+                            <span className="font-bold">{result.quantity}</span>
+                        </div>
+                    </div>
+                    <p className="text-xs font-mono mt-4 text-muted-foreground">{result.bookingId}</p>
+                </div>
+            );
             break;
         case 'invalid':
             content = <div className="text-destructive flex flex-col items-center text-center"><XCircle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">INVALID</h2><p className="text-center mt-2 text-base font-medium">{result.message}</p></div>;
             break;
         case 'redeemed':
-            content = <div className="text-yellow-500 flex flex-col items-center text-center"><AlertTriangle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">ALREADY REDEEMED</h2><p className="text-sm mt-2">{result.bookingId}</p><p className='text-sm mt-1'>{result.message}</p></div>;
+             content = (
+                <div className="text-yellow-500 flex flex-col items-center text-center">
+                    <AlertTriangle className="h-24 w-24" />
+                    <h2 className="text-4xl font-bold mt-4">ALREADY REDEEMED</h2>
+                    <div className="mt-6 text-foreground bg-background/50 p-4 rounded-lg w-full max-w-sm">
+                        <div className="flex justify-between text-lg">
+                            <span className="text-muted-foreground">Name:</span>
+                            <span className="font-bold">{result.userName}</span>
+                        </div>
+                        <div className="flex justify-between text-lg mt-2">
+                            <span className="text-muted-foreground">Guests:</span>
+                            <span className="font-bold">{result.quantity}</span>
+                        </div>
+                    </div>
+                    <p className="text-sm mt-4 text-foreground">{result.message}</p>
+                    <p className="text-xs font-mono mt-2 text-muted-foreground">{result.bookingId}</p>
+                </div>
+            );
             break;
         default:
             return null;
