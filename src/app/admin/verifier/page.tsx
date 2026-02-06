@@ -3,27 +3,26 @@
 import { useEffect, useState } from 'react';
 import { useFirestore, useUser } from '@/firebase';
 import { collection, query, getDocs, where } from 'firebase/firestore';
-import type { Booking } from '@/lib/types';
-import { generateTicketJwt } from '@/lib/actions';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { QrCode } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function VerifierDataPage() {
-  const [jwts, setJwts] = useState<string[]>([]);
+  const [syncData, setSyncData] = useState<string>('');
+  const [ticketCount, setTicketCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const firestore = useFirestore();
   const { user } = useUser();
 
   useEffect(() => {
-    async function fetchValidJwts() {
+    async function fetchValidBookingIds() {
       if (!firestore || !user) {
         return;
       }
 
       setIsLoading(true);
-      const unredeemedBookings: { id: string; eventId: string; }[] = [];
+      const unredeemedBookings: { bookingId: string; eventId: string; }[] = [];
 
       // 1. Get all events created by this admin
       const eventsQuery = query(collection(firestore, 'events'), where('adminId', '==', user.uid));
@@ -34,30 +33,21 @@ export default function VerifierDataPage() {
         const bookingsQuery = query(collection(firestore, `events/${eventDoc.id}/bookings`), where('redeemed', '==', false));
         const bookingsSnapshot = await getDocs(bookingsQuery);
         const eventBookings = bookingsSnapshot.docs.map(doc => ({
-          id: doc.id,
+          bookingId: doc.id,
           eventId: eventDoc.id,
         }));
         unredeemedBookings.push(...eventBookings);
       }
-
-      // 3. Generate JWTs for each unredeemed booking
-      if (unredeemedBookings.length > 0) {
-        const jwtPromises = unredeemedBookings.map(booking => 
-          generateTicketJwt({ bookingId: booking.id, eventId: booking.eventId })
-        );
-        const resolvedJwts = await Promise.all(jwtPromises);
-        setJwts(resolvedJwts);
-      } else {
-        setJwts([]);
-      }
       
+      // 3. Create a JSON string of the booking identifiers
+      setSyncData(JSON.stringify(unredeemedBookings, null, 2));
+      setTicketCount(unredeemedBookings.length);
       setIsLoading(false);
     }
 
-    fetchValidJwts();
+    fetchValidBookingIds();
   }, [firestore, user]);
 
-  const jwtsAsString = jwts.join('\n');
 
   return (
     <div className="p-4 md:p-8">
@@ -67,15 +57,15 @@ export default function VerifierDataPage() {
       </div>
       <p className="text-muted-foreground mb-8 max-w-3xl">
         This page provides all the necessary data for the offline ticket verifier app.
-        Before an event, copy this data and paste it into the verifier app to sync all valid, unredeemed tickets.
+        Before an event, copy this JSON data and paste it into the verifier app to sync all valid, unredeemed tickets.
         This enables offline verification at the gate.
       </p>
 
       <Card>
         <CardHeader>
-          <CardTitle>Valid Ticket JWTs</CardTitle>
+          <CardTitle>Valid Ticket Data (JSON)</CardTitle>
           <CardDescription>
-            A list of all valid tickets that have not yet been redeemed.
+            A JSON array of all valid tickets that have not yet been redeemed.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -88,12 +78,12 @@ export default function VerifierDataPage() {
             <>
               <Textarea
                 readOnly
-                value={jwtsAsString}
+                value={syncData}
                 className="h-96 font-mono text-xs"
                 placeholder="No valid tickets found."
               />
               <p className="text-sm text-muted-foreground mt-2">
-                {jwts.length} valid ticket(s) found.
+                {ticketCount} valid ticket(s) found.
               </p>
             </>
           )}

@@ -21,10 +21,15 @@ type VerificationResult = {
     eventId?: string;
 }
 
+type ValidBooking = {
+    bookingId: string;
+    eventId: string;
+};
+
 export function VerifierClient() {
   const { toast } = useToast();
   const firestore = useFirestore();
-  const [validJwts, setValidJwts] = useState<string[]>([]);
+  const [validBookings, setValidBookings] = useState<ValidBooking[]>([]);
   const [redeemedIds, setRedeemedIds] = useState<Set<string>>(new Set());
   const [scannedJwt, setScannedJwt] = useState('');
   const [result, setResult] = useState<VerificationResult | null>(null);
@@ -70,7 +75,7 @@ export function VerifierClient() {
         setResult({ status: 'invalid', message: 'Invalid or tampered ticket code.' });
     } else if (redeemedIds.has(payload.bookingId)) {
         setResult({ status: 'redeemed', message: `This ticket has already been redeemed on this device.` });
-    } else if (validJwts.includes(jwtToVerify)) {
+    } else if (validBookings.some(b => b.bookingId === payload.bookingId && b.eventId === payload.eventId)) {
         // Valid and found locally
         redeemTicket(payload.bookingId, payload.eventId);
         setResult({ status: 'valid', message: 'Ticket is valid and now redeemed.', bookingId: payload.bookingId, eventId: payload.eventId });
@@ -107,7 +112,7 @@ export function VerifierClient() {
         setResult(null);
         setIsScanning(true); // Resume scanning
     }, 4000);
-  }, [toast, validJwts, redeemedIds, firestore, redeemTicket]);
+  }, [toast, validBookings, redeemedIds, firestore, redeemTicket]);
 
   useEffect(() => {
     const getCameraPermission = async () => {
@@ -185,13 +190,36 @@ export function VerifierClient() {
 
 
   const handleSync = (data: string) => {
-    const jwts = data.split('\n').filter(Boolean);
-    setValidJwts(jwts);
-    setRedeemedIds(new Set());
-    toast({
-      title: 'Sync Complete',
-      description: `${jwts.length} tickets loaded into the verifier.`,
-    });
+    try {
+      if(!data) {
+        setValidBookings([]);
+        setRedeemedIds(new Set());
+        toast({
+          title: 'Sync Cleared',
+          description: `Verifier data has been cleared.`,
+        });
+        return;
+      }
+      const parsedData = JSON.parse(data);
+      if (Array.isArray(parsedData)) {
+          setValidBookings(parsedData);
+          setRedeemedIds(new Set());
+          toast({
+            title: 'Sync Complete',
+            description: `${parsedData.length} tickets loaded into the verifier.`,
+          });
+      } else {
+        throw new Error('Data is not an array');
+      }
+    } catch (e) {
+      console.error(e);
+      setValidBookings([]);
+      toast({
+        title: 'Sync Failed',
+        description: 'The provided data is not valid JSON. Please copy the data again.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const VerificationScreen = () => {
@@ -284,17 +312,17 @@ export function VerifierClient() {
             <CardHeader>
               <CardTitle>Sync Ticket Data</CardTitle>
               <CardDescription>
-                Copy the JWT data from the admin panel and paste it here to enable offline verification.
+                Copy the JSON data from the admin panel and paste it here to enable offline verification.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <Textarea
-                placeholder="Paste JWT data from admin panel..."
+                placeholder="Paste JSON data from admin panel..."
                 className="h-64 font-mono text-xs"
                 onChange={(e) => handleSync(e.target.value)}
               />
               <p className='text-sm text-muted-foreground'>
-                  Currently synced tickets: <strong>{validJwts.length}</strong> | Redeemed on this device: <strong>{redeemedIds.size}</strong>
+                  Currently synced tickets: <strong>{validBookings.length}</strong> | Redeemed on this device: <strong>{redeemedIds.size}</strong>
               </p>
             </CardContent>
           </Card>
