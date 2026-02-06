@@ -39,10 +39,10 @@ export default function EventPage() {
   const params = useParams();
   const eventId = params.id as string;
   const firestore = useFirestore();
-  const eventRef = useMemoFirebase(() => firestore ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
+  const eventRef = useMemoFirebase(() => (firestore && eventId) ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading, error } = useDoc<Event>(eventRef);
 
-  if (isLoading) {
+  if (isLoading || !eventId) {
     return (
         <>
             <Header />
