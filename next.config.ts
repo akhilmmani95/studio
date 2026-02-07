@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: 'ibb.co',
       },
+      {
+        protocol: 'https',
+        hostname: 'iili.io',
+      },
     ],
   },
 };
