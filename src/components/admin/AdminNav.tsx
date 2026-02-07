@@ -28,7 +28,7 @@ const navItems = [
   { href: '/admin/bookings', icon: BookCopy, label: 'Bookings' },
   { href: '/admin/events', icon: CalendarPlus, label: 'Events' },
   { href: '/admin/fraud-prevention', icon: ShieldAlert, label: 'Fraud Tool' },
-  { href: '/admin/verifier', icon: QrCode, label: 'Verifier Sync' },
+  { href: '/admin/verifier', icon: QrCode, label: 'Ticket Verifier' },
 ];
 
 export function AdminNav() {
