@@ -9,7 +9,7 @@ export function Logo() {
         alt="Club 7 Entertainments"
         width={180}
         height={45}
-        className="object-contain"
+        className="object-contain h-auto"
         priority
       />
     </Link>
