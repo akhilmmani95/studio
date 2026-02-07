@@ -86,7 +86,7 @@ export default function EventPage() {
                     src={event.imageUrl}
                     alt={event.name}
                     fill
-                    className="object-cover"
+                    className="object-contain"
                     priority
                   />
                 )}

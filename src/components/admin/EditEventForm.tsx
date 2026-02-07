@@ -158,8 +158,8 @@ export function EditEventForm({ event }: EditEventFormProps) {
               <FormControl>
                 <div>
                   {previewUrl ? (
-                    <div className="relative w-full aspect-video rounded-md overflow-hidden group">
-                      <Image src={previewUrl} alt="Event poster preview" fill className="object-cover" />
+                    <div className="relative w-full aspect-video rounded-md overflow-hidden group bg-muted">
+                      <Image src={previewUrl} alt="Event poster preview" fill className="object-contain" />
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button type="button" variant="destructive" onClick={() => { setPreviewUrl(null); form.setValue('imageUrl', ''); }}>Remove</Button>
                       </div>

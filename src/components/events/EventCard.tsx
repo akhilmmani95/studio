@@ -30,7 +30,7 @@ export function EventCard({ event }: EventCardProps) {
                 src={event.imageUrl}
                 alt={event.name}
                 fill
-                className="object-cover"
+                className="object-contain"
               />
             )}
              <div className="absolute bottom-2 right-2">
