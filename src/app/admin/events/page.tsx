@@ -9,7 +9,7 @@ import { EventCard } from '@/components/events/EventCard';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2, Pencil } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useToast } from '@/hooks/use-toast';
+import Link from 'next/link';
 
 function AdminEventGridSkeleton() {
     return (
@@ -98,15 +99,26 @@ export default function EventsPage() {
                 {events.map((event) => (
                   <div key={event.id} className="relative group/event">
                     <EventCard event={event} />
-                    <Button
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-4 right-4 z-10 opacity-0 group-hover/event:opacity-100 transition-opacity"
-                        onClick={() => setEventToDelete(event)}
-                        aria-label="Delete event"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="absolute top-4 right-4 z-10 flex gap-2 opacity-0 group-hover/event:opacity-100 transition-opacity">
+                        <Button
+                            variant="secondary"
+                            size="icon"
+                            asChild
+                            aria-label="Edit event"
+                        >
+                            <Link href={`/admin/events/edit/${event.id}`}>
+                                <Pencil className="h-4 w-4" />
+                            </Link>
+                        </Button>
+                        <Button
+                            variant="destructive"
+                            size="icon"
+                            onClick={() => setEventToDelete(event)}
+                            aria-label="Delete event"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </Button>
+                    </div>
                   </div>
                 ))}
                 {events.length === 0 && (
