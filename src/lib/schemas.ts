@@ -29,5 +29,6 @@ export const EventSchema = z.object({
   venue: z.string().min(3, "Venue must be at least 3 characters"),
   date: z.date({ required_error: "An event date is required." }),
   description: z.string().min(10, "Description must be at least 10 characters"),
+  imageUrl: z.string().url({ message: "Please enter a valid image URL." }),
   ticketTiers: z.array(TicketTierSchema).min(1, "At least one ticket tier is required."),
 });

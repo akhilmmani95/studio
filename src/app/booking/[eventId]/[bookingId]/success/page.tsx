@@ -8,7 +8,6 @@ import { TicketDisplay } from '@/components/booking/TicketDisplay';
 import { Header } from '@/components/shared/Header';
 import { Download } from 'lucide-react';
 import type { Booking, Event } from '@/lib/types';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Skeleton } from '@/components/ui/skeleton';
 import { generateTicketJwt } from '@/lib/actions';
 import QRCode from 'qrcode';
@@ -104,12 +103,6 @@ function BookingSuccessPageContents() {
   }
 
   const ticketTier = event.ticketTiers.find(t => t.id === booking.ticketTierId);
-  const eventImage = PlaceHolderImages.find(img => img.id === event.image);
-  
-  const eventWithImage = {
-      ...event,
-      imageUrl: eventImage?.imageUrl || '', // Provide a fallback
-  };
 
   return (
     <>
@@ -128,7 +121,7 @@ function BookingSuccessPageContents() {
           <div ref={ticketRef}>
             <TicketDisplay 
                 booking={booking}
-                event={eventWithImage}
+                event={event}
                 ticketTier={ticketTier}
                 qrCodeUrl={qrCodeUrl}
             />

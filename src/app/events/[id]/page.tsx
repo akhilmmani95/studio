@@ -9,7 +9,6 @@ import { BookingForm } from '@/components/booking/BookingForm';
 import { Calendar, MapPin, Ticket, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import type { Event } from '@/lib/types';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 import { Skeleton } from '@/components/ui/skeleton';
 
 function EventPageSkeleton() {
@@ -74,8 +73,6 @@ export default function EventPage() {
     notFound();
   }
 
-  const eventImage = PlaceHolderImages.find(img => img.id === event.image);
-
   return (
     <>
       <Header />
@@ -84,11 +81,10 @@ export default function EventPage() {
           <div className="grid md:grid-cols-5 gap-8 lg:gap-12">
             <div className="md:col-span-3">
               <div className="aspect-[16/9] relative rounded-lg overflow-hidden mb-6 shadow-lg bg-muted">
-                {eventImage && (
+                {event.imageUrl && (
                   <Image
-                    src={eventImage.imageUrl}
-                    alt={eventImage.description}
-                    data-ai-hint={eventImage.imageHint}
+                    src={event.imageUrl}
+                    alt={event.name}
                     fill
                     className="object-cover"
                     priority

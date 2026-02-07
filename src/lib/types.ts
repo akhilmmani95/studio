@@ -11,7 +11,7 @@ export type Event = {
   date: string;
   venue: string;
   description: string;
-  image: string;
+  imageUrl: string;
   ticketTiers: TicketTier[];
   adminId: string;
 };

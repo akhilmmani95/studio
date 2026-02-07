@@ -8,7 +8,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 
 type TicketDisplayProps = {
   booking: Booking;
-  event: Event & { imageUrl: string };
+  event: Event;
   ticketTier: TicketTier | undefined;
   qrCodeUrl: string;
 };

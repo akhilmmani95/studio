@@ -10,14 +10,12 @@ import {
 import { Button } from '@/components/ui/button';
 import type { Event } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
 
 type EventCardProps = {
   event: Event;
 };
 
 export function EventCard({ event }: EventCardProps) {
-  const eventImage = PlaceHolderImages.find(img => img.id === event.image);
   const minPrice = event.ticketTiers.length > 0
     ? Math.min(...event.ticketTiers.map((t) => t.price))
     : 0;
@@ -27,11 +25,10 @@ export function EventCard({ event }: EventCardProps) {
       <CardHeader className="p-0">
         <Link href={`/events/${event.id}`} className="block">
           <div className="aspect-[3/2] relative bg-muted">
-            {eventImage && (
+            {event.imageUrl && (
               <Image
-                src={eventImage.imageUrl}
-                alt={eventImage.description}
-                data-ai-hint={eventImage.imageHint}
+                src={event.imageUrl}
+                alt={event.name}
                 fill
                 className="object-cover"
               />

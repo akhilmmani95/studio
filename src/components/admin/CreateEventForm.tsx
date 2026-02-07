@@ -42,6 +42,7 @@ export function CreateEventForm() {
       venue: '',
       date: undefined,
       description: '',
+      imageUrl: '',
       ticketTiers: [{ name: 'General Admission', price: 500, totalSeats: 100 }],
     },
   });
@@ -71,7 +72,6 @@ export function CreateEventForm() {
           id: newEventId,
           adminId: user.uid,
           date: values.date.toISOString(),
-          image: `event-${Math.floor(Math.random() * 6) + 1}`, // Cycle through placeholder images
           ticketTiers: values.ticketTiers.map((tier, i) => ({
               ...tier,
               id: `tier-${i + 1}-${Date.now()}`,
@@ -173,6 +173,23 @@ export function CreateEventForm() {
               <FormControl>
                 <Textarea placeholder="Describe the event..." {...field} />
               </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="imageUrl"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Event Poster URL</FormLabel>
+              <FormControl>
+                <Input placeholder="https://images.unsplash.com/..." {...field} />
+              </FormControl>
+              <FormDescription>
+                Provide a URL for the event's poster image.
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
