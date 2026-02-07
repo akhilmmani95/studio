@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useForm, useFieldArray } from 'react-hook-form';
@@ -19,15 +20,17 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Loader2, PlusCircle, Trash2, Upload } from 'lucide-react';
 import { format } from 'date-fns';
 import { EventSchema } from '@/lib/schemas';
-import { useTransition } from 'react';
+import { useTransition, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
 import { useUser, useFirestore } from '@/firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import type { Event } from '@/lib/types';
+import { uploadImage } from '@/lib/actions';
+import Image from 'next/image';
 
 type EditEventFormProps = {
     event: Event;
@@ -39,6 +42,9 @@ export function EditEventForm({ event }: EditEventFormProps) {
   const { user } = useUser();
   const firestore = useFirestore();
   const router = useRouter();
+
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(event.imageUrl);
 
   const form = useForm<z.infer<typeof EventSchema>>({
     resolver: zodResolver(EventSchema),
@@ -60,6 +66,39 @@ export function EditEventForm({ event }: EditEventFormProps) {
     control: form.control,
     name: 'ticketTiers',
   });
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB
+      toast({ title: "File too large", description: "Image must be under 5MB.", variant: "destructive" });
+      return;
+    }
+    if (!['image/png', 'image/jpeg', 'image/gif'].includes(file.type)) {
+        toast({ title: "Invalid file type", description: "Please upload a PNG, JPG, or GIF.", variant: "destructive" });
+        return;
+    }
+
+
+    setIsUploading(true);
+    const formData = new FormData();
+    formData.append('image', file);
+
+    try {
+      const result = await uploadImage(formData);
+      if (result.error || !result.imageUrl) {
+        toast({ title: "Upload Failed", description: result.error || "Could not get image URL.", variant: "destructive" });
+        return;
+      }
+      setPreviewUrl(result.imageUrl);
+      form.setValue('imageUrl', result.imageUrl, { shouldValidate: true });
+    } catch (e) {
+      toast({ title: "Upload Error", description: "An unexpected error occurred.", variant: "destructive"});
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
   function onSubmit(values: z.infer<typeof EventSchema>) {
     if (!user || !firestore) {
@@ -109,6 +148,46 @@ export function EditEventForm({ event }: EditEventFormProps) {
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+
+        <FormField
+          control={form.control}
+          name="imageUrl"
+          render={() => (
+            <FormItem>
+              <FormLabel>Event Poster</FormLabel>
+              <FormControl>
+                <div>
+                  {previewUrl ? (
+                    <div className="relative w-full aspect-video rounded-md overflow-hidden group">
+                      <Image src={previewUrl} alt="Event poster preview" fill className="object-cover" />
+                      <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button type="button" variant="destructive" onClick={() => { setPreviewUrl(null); form.setValue('imageUrl', ''); }}>Remove</Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <label htmlFor="image-upload" className="relative cursor-pointer w-full aspect-video rounded-md border-2 border-dashed border-muted-foreground/50 flex flex-col items-center justify-center p-4 hover:bg-muted/50 transition-colors">
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                          <p className="mt-2 text-sm text-muted-foreground">Uploading...</p>
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="h-8 w-8 text-muted-foreground"/>
+                          <p className="mt-2 text-sm text-center text-muted-foreground">Click to upload poster</p>
+                          <p className="text-xs text-muted-foreground/80">PNG, JPG, GIF up to 5MB</p>
+                        </>
+                      )}
+                      <Input id="image-upload" type="file" className="sr-only" onChange={handleFileChange} accept="image/png, image/jpeg, image/gif" disabled={isUploading} />
+                    </label>
+                  )}
+                </div>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+        
         <FormField
           control={form.control}
           name="name"
@@ -183,23 +262,6 @@ export function EditEventForm({ event }: EditEventFormProps) {
               <FormControl>
                 <Textarea placeholder="Describe the event..." {...field} />
               </FormControl>
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-
-        <FormField
-          control={form.control}
-          name="imageUrl"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Event Poster URL</FormLabel>
-              <FormControl>
-                <Input placeholder="https://example.com/poster.jpg" {...field} />
-              </FormControl>
-              <FormDescription>
-                Paste a direct link to the event's poster image.
-              </FormDescription>
               <FormMessage />
             </FormItem>
           )}
@@ -281,8 +343,8 @@ export function EditEventForm({ event }: EditEventFormProps) {
           </div>
         </div>
 
-        <Button type="submit" className="w-full" disabled={isPending}>
-          {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        <Button type="submit" className="w-full" disabled={isPending || isUploading}>
+          {(isPending || isUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Save Changes
         </Button>
       </form>

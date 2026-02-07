@@ -74,6 +74,42 @@ export async function getPlaceholderImageById(id: string) {
     return PlaceHolderImages.find(img => img.id === id);
 }
 
+export async function uploadImage(formData: FormData): Promise<{ imageUrl?: string; error?: string; }> {
+    const imageFile = formData.get('image') as File;
+    if (!imageFile) {
+        return { error: 'No image file provided.' };
+    }
+
+    const apiKey = process.env.IMGBB_API_KEY;
+    if (!apiKey) {
+        console.error('IMGBB_API_KEY is not set in environment variables.');
+        return { error: 'Image upload service is not configured.' };
+    }
+
+    const uploadFormData = new FormData();
+    uploadFormData.append('image', imageFile);
+
+    try {
+        const response = await fetch(`https://api.imgbb.com/1/upload?key=${apiKey}`, {
+            method: 'POST',
+            body: uploadFormData,
+        });
+
+        const result = await response.json();
+
+        if (!response.ok || !result.success) {
+            return { error: `Image upload failed: ${result.error?.message || 'Unknown error'}` };
+        }
+
+        return { imageUrl: result.data.url };
+
+    } catch (error) {
+        console.error('Error uploading to ImgBB:', error);
+        return { error: 'An unexpected error occurred during image upload.' };
+    }
+}
+
+
 // This function is now client-side as it needs a Firestore instance.
 // It is left here as a placeholder to avoid breaking imports, but it's not used.
 export async function markAsRedeemed(bookingId: string) {
