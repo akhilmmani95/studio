@@ -16,7 +16,7 @@ const fontHeadline = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: 'TicketVerse - Your Universe of Events',
+  title: 'Club 7 Entertainments',
   description: 'The one-stop platform for booking and verifying event tickets.',
 };
 

@@ -55,9 +55,11 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-gray-100 dark:bg-gray-900">
       <div className="mx-auto w-full max-w-md rounded-lg bg-white p-8 shadow-md dark:bg-gray-800">
-        <div className="mb-8 text-center">
+        <div className="mb-8 flex justify-center">
           <Logo />
-          <h1 className="mt-4 text-2xl font-bold">Admin Login</h1>
+        </div>
+        <div className="text-center mb-8">
+          <h1 className="text-2xl font-bold">Admin Login</h1>
           <p className="text-muted-foreground">
             Sign in to access the dashboard.
           </p>
