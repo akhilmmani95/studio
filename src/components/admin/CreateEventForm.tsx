@@ -24,8 +24,9 @@ import { EventSchema } from '@/lib/schemas';
 import { useTransition } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { Label } from '@/components/ui/label';
-import { useUser, useFirestore, addDocumentNonBlocking } from '@/firebase';
+import { useUser, useFirestore, useStorage } from '@/firebase';
 import { collection, doc, setDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import type { Event } from '@/lib/types';
 
 
@@ -34,6 +35,7 @@ export function CreateEventForm() {
   const { toast } = useToast();
   const { user } = useUser();
   const firestore = useFirestore();
+  const storage = useStorage();
 
   const form = useForm<z.infer<typeof EventSchema>>({
     resolver: zodResolver(EventSchema),
@@ -42,7 +44,7 @@ export function CreateEventForm() {
       venue: '',
       date: undefined,
       description: '',
-      imageUrl: '',
+      imageFile: undefined,
       ticketTiers: [{ name: 'General Admission', price: 500, totalSeats: 100 }],
     },
   });
@@ -52,8 +54,10 @@ export function CreateEventForm() {
     name: 'ticketTiers',
   });
 
+  const imageFileRef = form.register('imageFile');
+
   function onSubmit(values: z.infer<typeof EventSchema>) {
-    if (!user || !firestore) {
+    if (!user || !firestore || !storage) {
       toast({
         title: "Authentication Error",
         description: "You must be logged in to create an event.",
@@ -63,15 +67,27 @@ export function CreateEventForm() {
     }
     startTransition(async () => {
       try {
-        const eventsCollection = collection(firestore, 'events');
-        const newEventRef = doc(eventsCollection);
+        const imageFile = values.imageFile[0];
+        if (!imageFile) {
+            throw new Error("Image file is missing.");
+        }
+
+        const newEventRef = doc(collection(firestore, 'events'));
         const newEventId = newEventRef.id;
 
+        // Upload image
+        const storageRef = ref(storage, `event-posters/${newEventId}/${imageFile.name}`);
+        const uploadResult = await uploadBytes(storageRef, imageFile);
+        const imageUrl = await getDownloadURL(uploadResult.ref);
+
         const newEvent: Event = {
-          ...values,
+          name: values.name,
+          venue: values.venue,
+          description: values.description,
+          date: values.date.toISOString(),
           id: newEventId,
           adminId: user.uid,
-          date: values.date.toISOString(),
+          imageUrl: imageUrl,
           ticketTiers: values.ticketTiers.map((tier, i) => ({
               ...tier,
               id: `tier-${i + 1}-${Date.now()}`,
@@ -180,15 +196,19 @@ export function CreateEventForm() {
 
         <FormField
           control={form.control}
-          name="imageUrl"
+          name="imageFile"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Event Poster URL</FormLabel>
+              <FormLabel>Event Poster</FormLabel>
               <FormControl>
-                <Input placeholder="https://images.unsplash.com/..." {...field} />
+                <Input 
+                    type="file" 
+                    accept="image/png, image/jpeg, image/webp" 
+                    {...imageFileRef}
+                />
               </FormControl>
               <FormDescription>
-                Provide a URL for the event's poster image.
+                Upload the event's poster image (max 5MB).
               </FormDescription>
               <FormMessage />
             </FormItem>
