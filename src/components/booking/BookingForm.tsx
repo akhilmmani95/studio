@@ -233,7 +233,7 @@ export function BookingForm({ event }: BookingFormProps) {
                 <FormItem>
                   <FormLabel>Full Name</FormLabel>
                   <FormControl>
-                    <Input placeholder="John Doe" {...field} />
+                    <Input placeholder="Enter your Name" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -246,7 +246,7 @@ export function BookingForm({ event }: BookingFormProps) {
                 <FormItem>
                   <FormLabel>Phone Number</FormLabel>
                   <FormControl>
-                    <Input placeholder="9876543210" {...field} />
+                    <Input placeholder="Enter your Mobile Number" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
