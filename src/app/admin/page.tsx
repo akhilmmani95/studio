@@ -7,12 +7,32 @@ import { useFirestore, useUser } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import type { Event, Booking } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+    Accordion,
+    AccordionContent,
+    AccordionItem,
+    AccordionTrigger,
+} from '@/components/ui/accordion';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
+
 
 type Stats = {
     totalRevenue: number;
     totalBookings: number;
     upcomingEvents: number;
 }
+
+type EventWithSeatStatus = Event & {
+    id: string;
+    seatStatus: {
+        tierId: string;
+        tierName: string;
+        sold: number;
+        total: number;
+        remaining: number;
+    }[];
+};
 
 function DashboardSkeleton() {
     return (
@@ -37,9 +57,26 @@ function CardSkeleton() {
     )
 }
 
+function EventStatusSkeleton() {
+    return (
+        <div className="space-y-4">
+            {Array.from({ length: 2 }).map((_, i) => (
+                <div key={i} className="rounded-md border p-4">
+                    <Skeleton className="h-6 w-1/2 mb-4" />
+                    <div className="space-y-3">
+                        <Skeleton className="h-5 w-full" />
+                        <Skeleton className="h-5 w-full" />
+                    </div>
+                </div>
+            ))}
+        </div>
+    )
+}
+
 
 export default function AdminDashboardPage() {
     const [stats, setStats] = useState<Stats | null>(null);
+    const [eventsWithStatus, setEventsWithStatus] = useState<EventWithSeatStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const firestore = useFirestore();
     const { user } = useUser();
@@ -50,31 +87,49 @@ export default function AdminDashboardPage() {
             setIsLoading(true);
 
             let totalRevenue = 0;
-            let totalBookings = 0;
+            let totalTicketsSold = 0;
             let upcomingEvents = 0;
+            const allEventsWithStatus: EventWithSeatStatus[] = [];
 
             const eventsQuery = query(collection(firestore, 'events'), where('adminId', '==', user.uid));
             const eventsSnapshot = await getDocs(eventsQuery);
 
             const eventPromises = eventsSnapshot.docs.map(async (eventDoc) => {
-                const event = eventDoc.data() as Event;
+                const event = { ...eventDoc.data(), id: eventDoc.id } as Event & { id: string };
                 if (new Date(event.date) > new Date()) {
                     upcomingEvents++;
                 }
 
                 const bookingsQuery = collection(firestore, `events/${eventDoc.id}/bookings`);
                 const bookingsSnapshot = await getDocs(bookingsQuery);
-                
-                totalBookings += bookingsSnapshot.size;
-                bookingsSnapshot.forEach(bookingDoc => {
-                    const booking = bookingDoc.data() as Booking;
+                const bookings = bookingsSnapshot.docs.map(doc => doc.data() as Booking);
+
+                bookings.forEach(booking => {
                     totalRevenue += booking.totalAmount;
+                    totalTicketsSold += booking.quantity;
                 });
+
+                const seatStatus = event.ticketTiers.map(tier => {
+                    const sold = bookings
+                        .filter(b => b.ticketTierId === tier.id)
+                        .reduce((sum, b) => sum + b.quantity, 0);
+                    return {
+                        tierId: tier.id,
+                        tierName: tier.name,
+                        sold: sold,
+                        total: tier.totalSeats,
+                        remaining: tier.totalSeats - sold
+                    };
+                });
+                
+                allEventsWithStatus.push({ ...event, seatStatus });
             });
 
             await Promise.all(eventPromises);
 
-            setStats({ totalRevenue, totalBookings, upcomingEvents });
+            setStats({ totalRevenue, totalBookings: totalTicketsSold, upcomingEvents });
+            allEventsWithStatus.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            setEventsWithStatus(allEventsWithStatus);
             setIsLoading(false);
         }
 
@@ -89,10 +144,10 @@ export default function AdminDashboardPage() {
             description: "Total revenue from all bookings"
         },
         {
-            title: "Total Bookings",
+            title: "Total Tickets Sold",
             value: stats.totalBookings.toLocaleString(),
             icon: BookCopy,
-            description: "Total number of tickets booked"
+            description: "Total number of tickets sold"
         },
         {
             title: "Upcoming Events",
@@ -122,10 +177,43 @@ export default function AdminDashboardPage() {
             )}
             
             <div className="mt-12">
-                <h2 className="text-2xl font-bold font-headline mb-4">Quick Actions</h2>
-                <p className="text-muted-foreground">
-                    Navigate to other sections using the sidebar to manage your events, bookings, and more.
-                </p>
+                <h2 className="text-2xl font-bold font-headline mb-4">Event Seat Status</h2>
+                {isLoading ? (
+                    <EventStatusSkeleton />
+                ) : eventsWithStatus.length === 0 ? (
+                    <p className="text-muted-foreground">You haven't created any events yet.</p>
+                ) : (
+                    <Accordion type="single" collapsible className="w-full rounded-lg border">
+                        {eventsWithStatus.map((event, index) => (
+                            <AccordionItem value={event.id} key={event.id} className={cn(index === eventsWithStatus.length -1 && "border-b-0")}>
+                                <AccordionTrigger className="p-4 hover:no-underline text-left">
+                                    <div>
+                                        <p className='font-bold text-lg'>{event.name}</p>
+                                        <p className='text-sm text-muted-foreground'>{new Date(event.date).toLocaleDateString('en-US', { dateStyle: 'medium' })} - {event.venue}</p>
+                                    </div>
+                                </AccordionTrigger>
+                                <AccordionContent>
+                                    <ul className="px-4 pb-4 space-y-4">
+                                        {event.seatStatus.map(tier => (
+                                            <li key={tier.tierId}>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <p className="font-medium">{tier.tierName}</p>
+                                                    <p className="text-sm font-semibold">{tier.sold} / {tier.total} <span className='font-normal text-muted-foreground'>sold</span></p>
+                                                </div>
+                                                <Progress value={tier.total > 0 ? (tier.sold / tier.total) * 100 : 0} />
+                                                <div className="flex justify-between items-center mt-1 text-xs text-muted-foreground">
+                                                    <span>{tier.remaining} remaining</span>
+                                                    <span>{tier.total > 0 ? ((tier.sold / tier.total) * 100).toFixed(0) : 0}% full</span>
+                                                </div>
+                                            </li>
+                                        ))}
+                                        {event.seatStatus.length === 0 && <p className='text-muted-foreground text-sm'>This event has no ticket tiers.</p>}
+                                    </ul>
+                                </AccordionContent>
+                            </AccordionItem>
+                        ))}
+                    </Accordion>
+                )}
             </div>
         </div>
     );
