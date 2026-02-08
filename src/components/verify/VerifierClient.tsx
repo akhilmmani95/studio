@@ -70,17 +70,16 @@ export function VerifierClient() {
 
   const handleSearch = async () => {
     if (!firestore || !selectedEventId || !searchTerm.trim()) {
-      toast({ title: 'Error', description: 'Please select an event and enter a name to search.', variant: 'destructive'});
+      toast({ title: 'Error', description: 'Please select an event and enter a phone number to search.', variant: 'destructive'});
       return;
     }
     setIsSearching(true);
     setSearchAttempted(true);
     setSearchResults([]);
     try {
-      // Simple name search (case-sensitive). For case-insensitive, you'd need a different data model.
       const bookingsQuery = query(
         collection(firestore, `events/${selectedEventId}/bookings`), 
-        where('userName', '==', searchTerm.trim())
+        where('phone', '==', searchTerm.trim())
       );
       const snapshot = await getDocs(bookingsQuery);
       const results = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Booking));
@@ -333,56 +332,42 @@ export function VerifierClient() {
         <CardHeader>
           <CardTitle>Ticket Scanner</CardTitle>
           <CardDescription>
-              Point the camera at a ticket's QR code to verify it online. An internet connection is required.
+              Point the camera at a ticket's QR code. The result will appear below.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-              <div className="bg-muted rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
-                  <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline onCanPlay={() => setIsVideoReady(true)} />
-                  
-                  {result && !isVerifying && (
-                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20 transition-opacity duration-300">
-                        {result.status === 'valid' && <CheckCircle className="h-32 w-32 text-green-500" />}
-                        {result.status === 'invalid' && <XCircle className="h-32 w-32 text-destructive" />}
-                        {result.status === 'redeemed' && <AlertTriangle className="h-32 w-32 text-yellow-500" />}
-                    </div>
-                  )}
+          <div className="bg-muted rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
+              <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline onCanPlay={() => setIsVideoReady(true)} />
+              
+              {result && !isVerifying && (
+                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20 transition-opacity duration-300">
+                    {result.status === 'valid' && <CheckCircle className="h-32 w-32 text-green-500" />}
+                    {result.status === 'invalid' && <XCircle className="h-32 w-32 text-destructive" />}
+                    {result.status === 'redeemed' && <AlertTriangle className="h-32 w-32 text-yellow-500" />}
+                </div>
+              )}
 
-                  {hasCameraPermission === false && (
-                       <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4 z-10">
-                          <Alert variant="destructive" className="w-auto">
-                              <AlertTriangle className="h-4 w-4" />
-                              <AlertTitle>Camera Access Required</AlertTitle>
-                              <AlertDescription>
-                                  Please allow camera access to use this feature.
-                              </AlertDescription>
-                          </Alert>
-                      </div>
-                  )}
-                   {hasCameraPermission === null && (
-                       <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
-                          <Loader2 className="h-8 w-8 animate-spin" />
-                       </div>
-                   )}
-                   {isVerifying && 
-                      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
-                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
-                      </div>
-                    }
-              </div>
-               <div className="space-y-2">
-                  <Textarea
-                      placeholder="Or paste QR code data here..."
-                      value={scannedJwt}
-                      onChange={(e) => setScannedJwt(e.target.value)}
-                      className="h-24"
-                  />
-                  <Button onClick={() => handleVerify(scannedJwt)} className="w-full" size="lg" disabled={isVerifying || !scannedJwt}>
-                      <ScanLine className="mr-2 h-5 w-5" />
-                      Verify Manually
-                  </Button>
-              </div>
+              {hasCameraPermission === false && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4 z-10">
+                      <Alert variant="destructive" className="w-auto">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertTitle>Camera Access Required</AlertTitle>
+                          <AlertDescription>
+                              Please allow camera access to use this feature.
+                          </AlertDescription>
+                      </Alert>
+                  </div>
+              )}
+                {hasCameraPermission === null && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
+                      <Loader2 className="h-8 w-8 animate-spin" />
+                    </div>
+                )}
+                {isVerifying && 
+                  <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                  </div>
+                }
           </div>
         </CardContent>
       </Card>
@@ -400,7 +385,7 @@ export function VerifierClient() {
         <CardHeader>
           <CardTitle>Manual Lookup</CardTitle>
           <CardDescription>
-            Find a booking by name if the user forgot their QR code.
+            Find a booking by phone number if the guest forgot their QR code.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -422,11 +407,12 @@ export function VerifierClient() {
             </Select>
           </div>
           <div className="space-y-2">
-              <Label htmlFor="search-name">2. Booker's Name</Label>
+              <Label htmlFor="search-phone">2. Booker's Phone Number</Label>
               <div className="flex gap-2">
                   <Input 
-                      id="search-name"
-                      placeholder="Enter the name on the booking"
+                      id="search-phone"
+                      type="tel"
+                      placeholder="Enter the 10-digit phone number"
                       value={searchTerm}
                       onChange={e => setSearchTerm(e.target.value)}
                       disabled={!selectedEventId || isSearching}
@@ -475,10 +461,33 @@ export function VerifierClient() {
                     })}
                 </ul>
             ) : (
-                 <p className="text-muted-foreground text-center p-8">No bookings found with that name.</p>
+                 <p className="text-muted-foreground text-center p-8">No bookings found with that phone number.</p>
             )}
         </CardContent>
         )}
+      </Card>
+
+      <Card className="mt-6">
+        <CardHeader>
+          <CardTitle>Manual Verification</CardTitle>
+          <CardDescription>
+            Paste the data from a QR code if the scanner is not working.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+            <div className="space-y-2">
+                <Textarea
+                    placeholder="Paste QR code data here..."
+                    value={scannedJwt}
+                    onChange={(e) => setScannedJwt(e.target.value)}
+                    className="h-24 font-mono text-xs"
+                />
+                <Button onClick={() => handleVerify(scannedJwt)} className="w-full" size="lg" disabled={isVerifying || !scannedJwt}>
+                    <ScanLine className="mr-2 h-5 w-5" />
+                    Verify Pasted Code
+                </Button>
+            </div>
+        </CardContent>
       </Card>
     </>
   );
