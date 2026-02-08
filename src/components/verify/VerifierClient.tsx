@@ -49,8 +49,6 @@ export function VerifierClient() {
     setIsVerifying(true);
     setResult(null);
 
-    await new Promise(resolve => setTimeout(resolve, 500)); // Visual delay for user feedback
-
     const payload = await verifyTicketJwt(jwtToVerify);
 
     if (!payload) {
@@ -180,69 +178,75 @@ export function VerifierClient() {
     };
   }, [hasCameraPermission, isScanning, isVerifying, result, handleVerify, isVideoReady]);
 
-  const VerificationScreen = () => {
+  const renderResult = () => {
     if (isVerifying) {
-        return <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10"><Loader2 className="h-16 w-16 animate-spin text-primary" /><p className="mt-4 text-lg font-semibold">Verifying...</p></div>;
+        return (
+            <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="font-semibold">Verifying...</p>
+            </div>
+        );
     }
-
-    if (!result) {
-        return null;
-    }
-
-    let content;
-    switch(result.status) {
-        case 'valid':
-            content = (
-                <div className="text-green-500 flex flex-col items-center text-center">
-                    <CheckCircle className="h-24 w-24" />
-                    <h2 className="text-4xl font-bold mt-4">VALID</h2>
-                    <div className="mt-6 text-foreground bg-background/50 p-4 rounded-lg w-full max-w-sm">
-                        <div className="flex justify-between text-lg">
-                            <span className="text-muted-foreground">Name:</span>
-                            <span className="font-bold">{result.userName}</span>
-                        </div>
-                        <div className="flex justify-between text-lg mt-2">
-                            <span className="text-muted-foreground">Guests:</span>
-                            <span className="font-bold">{result.quantity}</span>
+    
+    if (result) {
+        switch(result.status) {
+            case 'valid':
+                return (
+                    <div className="text-green-600 dark:text-green-500 flex flex-col items-center text-center gap-2">
+                        <CheckCircle className="h-12 w-12" />
+                        <h3 className="text-2xl font-bold">VALID</h3>
+                        <div className="mt-2 text-foreground text-left bg-secondary p-4 rounded-lg w-full max-w-sm">
+                            <div className="flex justify-between text-base">
+                                <span className="text-muted-foreground">Name:</span>
+                                <span className="font-bold">{result.userName}</span>
+                            </div>
+                            <div className="flex justify-between text-base mt-1">
+                                <span className="text-muted-foreground">Guests:</span>
+                                <span className="font-bold">{result.quantity}</span>
+                            </div>
+                            <p className="text-xs font-mono mt-3 text-muted-foreground text-center">{result.bookingId}</p>
                         </div>
                     </div>
-                    <p className="text-xs font-mono mt-4 text-muted-foreground">{result.bookingId}</p>
-                </div>
-            );
-            break;
-        case 'invalid':
-            content = <div className="text-destructive flex flex-col items-center text-center"><XCircle className="h-24 w-24" /><h2 className="text-4xl font-bold mt-4">INVALID</h2><p className="text-center mt-2 text-base font-medium">{result.message}</p></div>;
-            break;
-        case 'redeemed':
-             content = (
-                <div className="text-yellow-500 flex flex-col items-center text-center">
-                    <AlertTriangle className="h-24 w-24" />
-                    <h2 className="text-4xl font-bold mt-4">ALREADY REDEEMED</h2>
-                    <div className="mt-6 text-foreground bg-background/50 p-4 rounded-lg w-full max-w-sm">
-                        <div className="flex justify-between text-lg">
-                            <span className="text-muted-foreground">Name:</span>
-                            <span className="font-bold">{result.userName}</span>
-                        </div>
-                        <div className="flex justify-between text-lg mt-2">
-                            <span className="text-muted-foreground">Guests:</span>
-                            <span className="font-bold">{result.quantity}</span>
-                        </div>
+                );
+            case 'invalid':
+                return (
+                    <div className="text-destructive flex flex-col items-center text-center gap-2">
+                        <XCircle className="h-12 w-12" />
+                        <h3 className="text-2xl font-bold">INVALID</h3>
+                        <p className="text-center font-medium">{result.message}</p>
                     </div>
-                    <p className="text-sm mt-4 text-foreground">{result.message}</p>
-                    <p className="text-xs font-mono mt-2 text-muted-foreground">{result.bookingId}</p>
-                </div>
-            );
-            break;
-        default:
-            return null;
+                );
+            case 'redeemed':
+                return (
+                    <div className="text-yellow-500 dark:text-yellow-400 flex flex-col items-center text-center gap-2">
+                        <AlertTriangle className="h-12 w-12" />
+                        <h3 className="text-2xl font-bold">ALREADY REDEEMED</h3>
+                        <div className="mt-2 text-foreground text-left bg-secondary p-4 rounded-lg w-full max-w-sm">
+                            <div className="flex justify-between text-base">
+                                <span className="text-muted-foreground">Name:</span>
+                                <span className="font-bold">{result.userName}</span>
+                            </div>
+                            <div className="flex justify-between text-base mt-1">
+                                <span className="text-muted-foreground">Guests:</span>
+                                <span className="font-bold">{result.quantity}</span>
+                            </div>
+                        </div>
+                        <p className="text-sm mt-2 text-foreground">{result.message}</p>
+                        <p className="text-xs font-mono mt-1 text-muted-foreground">{result.bookingId}</p>
+                    </div>
+                );
+            default:
+                return null;
+        }
     }
-
+    
     return (
-        <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10 p-4">
-            {content}
+        <div className="text-muted-foreground text-center">
+            <p>Scan a ticket or enter code to see the result.</p>
         </div>
     );
-  }
+  };
+
 
   return (
     <>
@@ -274,7 +278,11 @@ export function VerifierClient() {
                           <Loader2 className="h-8 w-8 animate-spin" />
                        </div>
                    )}
-                   <VerificationScreen />
+                   {isVerifying && 
+                      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex flex-col items-center justify-center z-10">
+                        <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                      </div>
+                    }
               </div>
                <div className="space-y-2">
                   <Textarea
@@ -289,6 +297,15 @@ export function VerifierClient() {
                   </Button>
               </div>
           </div>
+        </CardContent>
+      </Card>
+      
+      <Card className="mt-6">
+        <CardHeader>
+            <CardTitle>Verification Result</CardTitle>
+        </CardHeader>
+        <CardContent className="min-h-[200px] flex items-center justify-center p-6">
+            {renderResult()}
         </CardContent>
       </Card>
     </>
