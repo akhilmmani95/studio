@@ -15,7 +15,6 @@ import {
   LayoutDashboard,
   BookCopy,
   CalendarPlus,
-  ShieldAlert,
   QrCode,
   Home,
   LogOut,
@@ -27,7 +26,6 @@ const navItems = [
   { href: '/admin', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/admin/bookings', icon: BookCopy, label: 'Bookings' },
   { href: '/admin/events', icon: CalendarPlus, label: 'Events' },
-  { href: '/admin/fraud-prevention', icon: ShieldAlert, label: 'Fraud Tool' },
   { href: '/admin/verifier', icon: QrCode, label: 'Ticket Verifier' },
 ];
 
