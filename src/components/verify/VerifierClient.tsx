@@ -262,8 +262,17 @@ export function VerifierClient() {
           <div className="space-y-4">
               <div className="bg-muted rounded-lg aspect-video flex items-center justify-center relative overflow-hidden">
                   <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline onCanPlay={() => setIsVideoReady(true)} />
+                  
+                  {result && !isVerifying && (
+                    <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20">
+                        {result.status === 'valid' && <CheckCircle className="h-32 w-32 text-green-500" />}
+                        {result.status === 'invalid' && <XCircle className="h-32 w-32 text-destructive" />}
+                        {result.status === 'redeemed' && <AlertTriangle className="h-32 w-32 text-yellow-500" />}
+                    </div>
+                  )}
+
                   {hasCameraPermission === false && (
-                       <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4">
+                       <div className="absolute inset-0 bg-background/80 flex items-center justify-center p-4 z-10">
                           <Alert variant="destructive" className="w-auto">
                               <AlertTriangle className="h-4 w-4" />
                               <AlertTitle>Camera Access Required</AlertTitle>
@@ -274,7 +283,7 @@ export function VerifierClient() {
                       </div>
                   )}
                    {hasCameraPermission === null && (
-                       <div className="absolute inset-0 bg-background/80 flex items-center justify-center">
+                       <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-10">
                           <Loader2 className="h-8 w-8 animate-spin" />
                        </div>
                    )}
