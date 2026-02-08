@@ -31,7 +31,7 @@ export default function ContactUsPage() {
                             <h3 className="text-xl font-semibold">Email Support</h3>
                             <p className="text-muted-foreground">For general inquiries, support, and feedback.</p>
                             <a href="mailto:support@club7entertainments.com" className="text-primary font-medium hover:underline">
-                                support@club7entertainments.com
+                                club7entertainments@gmail.com
                             </a>
                         </div>
                     </div>
@@ -41,7 +41,7 @@ export default function ContactUsPage() {
                             <h3 className="text-xl font-semibold">Phone Support</h3>
                             <p className="text-muted-foreground">For urgent matters regarding your bookings.</p>
                             <a href="tel:+911234567890" className="text-primary font-medium hover:underline">
-                                +91 123 456 7890
+                                +91 9846406636
                             </a>
                         </div>
                     </div>
