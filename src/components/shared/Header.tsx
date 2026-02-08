@@ -18,11 +18,11 @@ export function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-zinc-800 bg-black">
+    <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-black/80 backdrop-blur-sm">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-6">
           <div className="hidden md:block">
-            <Logo className="invert" />
+            <Logo />
           </div>
           <nav className="hidden items-center gap-4 text-sm font-medium md:flex">
             {/* Links removed as per your request */}
@@ -30,7 +30,7 @@ export function Header() {
         </div>
 
         <div className="md:hidden">
-          <Logo className="invert" />
+          <Logo />
         </div>
 
         <div className="flex items-center gap-4">
@@ -46,7 +46,7 @@ export function Header() {
             </SheetTrigger>
             <SheetContent side="left" className="bg-black border-r-zinc-800 text-white">
               <div className="p-6">
-                <Logo className="invert" />
+                <Logo />
                 <div className="grid gap-4 py-6">
                   {/* Admin links removed */}
                 </div>
