@@ -5,6 +5,7 @@ import './globals.css';
 import { cn } from '@/lib/utils';
 import { Toaster } from '@/components/ui/toaster';
 import { FirebaseClientProvider } from '@/firebase';
+import { Footer } from '@/components/shared/Footer';
 
 const fontBody = Inter({
   subsets: ['latin'],
@@ -40,7 +41,10 @@ export default function RootLayout({
       </head>
       <body className={cn('antialiased font-body')} suppressHydrationWarning={true}>
         <FirebaseClientProvider>
-          <div className="relative flex min-h-screen flex-col">{children}</div>
+          <div className="relative flex min-h-screen flex-col">
+            {children}
+            <Footer />
+          </div>
           <Toaster />
         </FirebaseClientProvider>
       </body>
