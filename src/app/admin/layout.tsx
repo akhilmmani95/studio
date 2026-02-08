@@ -7,6 +7,7 @@ import {
   Sidebar,
   SidebarProvider,
   SidebarInset,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import { Loader2 } from 'lucide-react';
 
@@ -38,6 +39,9 @@ export default function AdminLayout({
         <AdminNav />
       </Sidebar>
       <SidebarInset>
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b bg-background px-4 md:hidden">
+          <SidebarTrigger />
+        </header>
         <main>{children}</main>
       </SidebarInset>
     </SidebarProvider>
