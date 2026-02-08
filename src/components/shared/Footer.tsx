@@ -14,7 +14,6 @@ export function Footer() {
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <Link href="/contact-us" className="hover:text-white transition-colors">Contact Us</Link>
             <Link href="/refund-policy" className="hover:text-white transition-colors">Refund Policy</Link>
-            <Link href="/admin" className="hover:text-white transition-colors">Admin</Link>
           </nav>
           <div className="text-sm text-zinc-400 text-center md:text-right">
             <p>&copy; {new Date().getFullYear()} Club 7 Entertainments. All rights reserved.</p>
