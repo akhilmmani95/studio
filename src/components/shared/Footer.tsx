@@ -18,7 +18,7 @@ export function Footer() {
           </nav>
           <div className="text-sm text-muted-foreground text-center md:text-right">
             <p>&copy; {new Date().getFullYear()} Club 7 Entertainments. All rights reserved.</p>
-            <p>Developed by <a href="https://auramaze.co" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">Auramaze</a></p>
+            <p>Developed by <a href="https://auramaze.in" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary hover:underline">Auramaze</a></p>
           </div>
         </div>
       </div>
