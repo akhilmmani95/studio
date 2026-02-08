@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { Inter, Space_Grotesk } from 'next/font/google';
 import './globals.css';
@@ -18,6 +19,9 @@ const fontHeadline = Space_Grotesk({
 export const metadata: Metadata = {
   title: 'Club 7 Entertainments',
   description: 'The one-stop platform for booking and verifying event tickets.',
+  icons: {
+    icon: 'https://raw.githubusercontent.com/akhilmmani95/studio/main/src/WhatsApp_Image_2026-02-02_at_10.06.35_PM-removebg-preview.png',
+  },
 };
 
 export default function RootLayout({
