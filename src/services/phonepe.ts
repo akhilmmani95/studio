@@ -16,7 +16,9 @@ import type {
 } from "@/lib/phonepe-types";
 
 const PHONEPE_API_BASE = "https://api.phonepe.com/apis/hermes";
-const PHONEPE_SANDBOX_BASE = "https://api.sandbox.phonepe.com/apis/hermes";
+const PHONEPE_SANDBOX_BASE = "https://api-preprod.phonepe.com/apis/hermes";
+const PHONEPE_AUTH_URL = "https://api.phonepe.com/apis/identity-manager/v1/oauth/token";
+const PHONEPE_SANDBOX_AUTH_URL = "https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token";
 
 interface PhonePeConfig {
   clientId: string;
@@ -25,6 +27,7 @@ interface PhonePeConfig {
   redirectUrl: string;
   callbackUrl: string;
   isSandbox: boolean;
+  saltKey?: string;
 }
 
 class PhonePeService {
@@ -40,6 +43,10 @@ class PhonePeService {
     return this.config.isSandbox ? PHONEPE_SANDBOX_BASE : PHONEPE_API_BASE;
   }
 
+  private getAuthUrl(): string {
+    return this.config.isSandbox ? PHONEPE_SANDBOX_AUTH_URL : PHONEPE_AUTH_URL;
+  }
+
   /**
    * Step 1: Generate Authorization Token
    * Creates a unique token for API authentication
@@ -51,31 +58,40 @@ class PhonePeService {
     }
 
     try {
-      const baseUrl = this.getBaseUrl();
-      const tokenUrl = `${baseUrl}/auth/generateToken`;
+      const tokenUrl = this.getAuthUrl();
       console.log("[PhonePe] Generating auth token from:", tokenUrl, "sandbox:", this.config.isSandbox);
       
       const response = await fetch(tokenUrl, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "X-CLIENT-ID": this.config.clientId,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
-        body: JSON.stringify({
-          clientId: this.config.clientId,
-        }),
+        body: new URLSearchParams({
+          client_id: this.config.clientId,
+          client_secret: this.config.clientSecret,
+          client_version: this.config.clientVersion,
+          grant_type: "client_credentials",
+        }).toString(),
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to generate auth token: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Failed to generate auth token: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const data: PhonePeAuthResponse = await response.json();
+      const token =
+        data?.data?.token ||
+        (data as unknown as { access_token?: string }).access_token ||
+        (data as unknown as { data?: { accessToken?: string } }).data?.accessToken;
 
-      if (data.success && data.data?.token) {
-        this.authToken = data.data.token;
-        // Tokens typically valid for 15 minutes
-        this.tokenExpiry = Date.now() + 15 * 60 * 1000;
+      if (token) {
+        this.authToken = token;
+        // Defaults to 15 minutes if provider does not return expiry
+        const expiresInSeconds = Number(
+          (data as unknown as { expires_in?: number }).expires_in ?? 15 * 60
+        );
+        this.tokenExpiry = Date.now() + expiresInSeconds * 1000;
         return this.authToken;
       }
 
@@ -252,6 +268,9 @@ class PhonePeService {
     payload: string,
     type: "PAY" | "STATUS" | "WEBHOOK" | "REFUND"
   ): string {
+    if (!this.config.saltKey) {
+      throw new Error("PHONEPE_SALT_KEY is required for checksum generation");
+    }
     const keyIndex = 1;
     const hashInput = `${payload}${this.config.saltKey}${type}`;
     const hash = crypto.createHash("sha256").update(hashInput).digest("hex");
@@ -323,6 +342,7 @@ function initPhonePeService(): PhonePeService {
   const clientVersion = process.env.PHONEPE_CLIENT_VERSION;
   const redirectUrl = process.env.PHONEPE_REDIRECT_URL;
   const callbackUrl = process.env.PHONEPE_CALLBACK_URL;
+  const saltKey = process.env.PHONEPE_SALT_KEY;
 
   if (!clientId || !clientSecret || !clientVersion || !redirectUrl || !callbackUrl) {
     throw new Error("PhonePe environment variables are not configured");
@@ -335,6 +355,7 @@ function initPhonePeService(): PhonePeService {
     redirectUrl,
     callbackUrl,
     isSandbox: process.env.PHONEPE_SANDBOX === "true",
+    saltKey,
   });
 }
 
