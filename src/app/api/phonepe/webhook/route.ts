@@ -23,15 +23,25 @@ export async function OPTIONS(request: NextRequest) {
 }
 
 interface WebhookPayload {
-  event: string;
-  transactionId: string;
-  merchantTransactionId: string;
-  merchantId: string;
-  amount: number;
-  state: "COMPLETED" | "FAILED" | "PENDING";
-  responseCode: string;
-  paymentInstrument: Record<string, any>;
-  timestamp: number;
+  event?: string;
+  transactionId?: string;
+  merchantTransactionId?: string;
+  merchantId?: string;
+  amount?: number;
+  state?: "COMPLETED" | "FAILED" | "PENDING";
+  responseCode?: string;
+  paymentInstrument?: Record<string, any>;
+  timestamp?: number;
+  payload?: {
+    state?: "COMPLETED" | "FAILED" | "PENDING";
+    transactionId?: string;
+    merchantTransactionId?: string;
+    merchantId?: string;
+    amount?: number;
+    responseCode?: string;
+    paymentInstrument?: Record<string, any>;
+    timestamp?: number;
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -68,11 +78,14 @@ export async function POST(request: NextRequest) {
     }
 
     const payload: WebhookPayload = JSON.parse(rawBody);
+    const normalizedState = payload?.payload?.state || payload?.state;
+    const normalizedMerchantTxnId =
+      payload?.payload?.merchantTransactionId || payload?.merchantTransactionId;
 
     console.log("Webhook received:", {
       event: payload.event,
-      state: payload.state,
-      merchantTransactionId: payload.merchantTransactionId,
+      state: normalizedState,
+      merchantTransactionId: normalizedMerchantTxnId,
     });
 
     // Process payment status update
@@ -124,11 +137,20 @@ async function processPaymentStatus(
   payload: WebhookPayload
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const { merchantTransactionId, state, event } = payload;
+    const event = payload.event;
+    const state = payload?.payload?.state || payload?.state;
+    const merchantTransactionId =
+      payload?.payload?.merchantTransactionId || payload?.merchantTransactionId;
+    const transactionId = payload?.payload?.transactionId || payload?.transactionId;
+    const responseCode = payload?.payload?.responseCode || payload?.responseCode;
 
-    // Extract bookingId and eventId from merchantTransactionId or metadata
-    // Format: merchantId_orderId_timestamp
-    const parts = merchantTransactionId.split("_");
+    if (!event) {
+      return { success: false, message: "Missing webhook event" };
+    }
+
+    if (!merchantTransactionId) {
+      return { success: false, message: "Missing merchantTransactionId in webhook payload" };
+    }
 
     console.log(`Processing payment: ${merchantTransactionId}, State: ${state}`);
 
@@ -138,7 +160,7 @@ async function processPaymentStatus(
           // Payment successful - update booking status in Firestore
           await updateBookingPaymentStatus(merchantTransactionId, {
             paymentStatus: "COMPLETED",
-            paymentId: payload.transactionId,
+            paymentId: transactionId,
             completedAt: new Date().toISOString(),
           });
 
@@ -153,7 +175,7 @@ async function processPaymentStatus(
         // Payment failed - update booking status
         await updateBookingPaymentStatus(merchantTransactionId, {
           paymentStatus: "FAILED",
-          failureReason: payload.responseCode,
+          failureReason: responseCode,
           failedAt: new Date().toISOString(),
         });
 

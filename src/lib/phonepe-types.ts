@@ -3,12 +3,15 @@
  */
 
 export interface PhonePeAuthResponse {
-  success: boolean;
-  code: string;
-  message: string;
-  data: {
-    token: string;
+  success?: boolean;
+  code?: string;
+  message?: string;
+  data?: {
+    token?: string;
+    accessToken?: string;
   };
+  access_token?: string;
+  expires_in?: number;
 }
 
 export interface PhonePePaymentRequest {
@@ -57,7 +60,7 @@ export interface PhonePeStatusResponse {
   success: boolean;
   code: string;
   message: string;
-  data: {
+  data?: {
     merchantId: string;
     merchantTransactionId: string;
     transactionId: string;
@@ -65,6 +68,11 @@ export interface PhonePeStatusResponse {
     state: "COMPLETED" | "FAILED" | "PENDING";
     responseCode: string;
     paymentInstrument: Record<string, any>;
+  };
+  payload?: {
+    state?: "COMPLETED" | "FAILED" | "PENDING";
+    transactionId?: string;
+    merchantTransactionId?: string;
   };
 }
 

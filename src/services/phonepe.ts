@@ -115,6 +115,9 @@ class PhonePeService {
     customerEmail?: string;
     bookingId?: string;
     eventId?: string;
+    expireAfter?: number;
+    metaInfo?: Record<string, string>;
+    paymentModeConfig?: Record<string, { enabled: boolean }>;
   }): Promise<PaymentInitResponse> {
     try {
       console.log("[PhonePe] Initiating payment for order:", params.orderId);
@@ -133,13 +136,15 @@ class PhonePeService {
         paymentInstrument: {
           type: "UPI",
         },
-        expireAfter: 600, // 10 minutes
+        expireAfter: params.expireAfter ?? 600, // 10 minutes default
         metaInfo: {
           bookingId: params.bookingId || "",
           eventId: params.eventId || "",
           customerName: params.customerName,
           customerEmail: params.customerEmail || "",
+          ...(params.metaInfo || {}),
         },
+        paymentModeConfig: params.paymentModeConfig,
       };
 
       const base64Request = Buffer.from(JSON.stringify(paymentRequest)).toString("base64");
@@ -222,13 +227,16 @@ class PhonePeService {
       }
 
       const data: PhonePeStatusResponse = await response.json();
+      const normalizedState = data?.payload?.state || data?.data?.state;
+      const normalizedTransactionId =
+        data?.payload?.transactionId || data?.data?.transactionId;
 
-      if (data.success) {
+      if (data.success && normalizedState) {
         return {
           success: true,
-          message: `Payment ${data.data.state}`,
-          state: data.data.state,
-          transactionId: data.data.transactionId,
+          message: `Payment ${normalizedState}`,
+          state: normalizedState,
+          transactionId: normalizedTransactionId,
         };
       }
 
