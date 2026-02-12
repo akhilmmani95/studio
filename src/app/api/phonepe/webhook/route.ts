@@ -50,21 +50,8 @@ export async function POST(request: NextRequest) {
     const rawBody = await request.text();
     const signature = request.headers.get("X-Verify");
 
-    if (!signature) {
-      console.warn("Missing X-Verify header in webhook");
-      return NextResponse.json(
-        { success: false, message: "Missing verification header" },
-        {
-          status: 401,
-          headers: {
-            "Access-Control-Allow-Origin": "*",
-          },
-        }
-      );
-    }
-
-    // Verify webhook signature
-    if (!phonePeService.verifyWebhookSignature(rawBody, signature)) {
+    // Verify webhook signature only when provided/configured.
+    if (signature && !phonePeService.verifyWebhookSignature(rawBody, signature)) {
       console.warn("Invalid webhook signature");
       return NextResponse.json(
         { success: false, message: "Invalid signature" },

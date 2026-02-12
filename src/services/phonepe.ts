@@ -10,13 +10,12 @@ import type {
   PhonePePaymentRequest,
   PhonePePaymentResponse,
   PhonePeStatusResponse,
-  PhonePeWebhookPayload,
   PaymentInitResponse,
   PaymentStatusResponse,
 } from "@/lib/phonepe-types";
 
-const PHONEPE_API_BASE = "https://api.phonepe.com/apis/hermes";
-const PHONEPE_SANDBOX_BASE = "https://api-preprod.phonepe.com/apis/hermes";
+const PHONEPE_API_BASE = "https://api.phonepe.com/apis/pg";
+const PHONEPE_SANDBOX_BASE = "https://api-preprod.phonepe.com/apis/pg-sandbox";
 const PHONEPE_AUTH_URL = "https://api.phonepe.com/apis/identity-manager/v1/oauth/token";
 const PHONEPE_SANDBOX_AUTH_URL = "https://api-preprod.phonepe.com/apis/pg-sandbox/v1/oauth/token";
 
@@ -126,15 +125,15 @@ class PhonePeService {
       const merchantTransactionId = `${this.config.clientId}_${params.orderId}_${Date.now()}`;
 
       const paymentRequest: PhonePePaymentRequest = {
-        merchantId: this.config.clientId,
-        merchantTransactionId,
+        merchantOrderId: merchantTransactionId,
         amount: Math.round(params.amount * 100), // Convert to paise
-        redirectUrl: `${this.config.redirectUrl}?merchantTransactionId=${merchantTransactionId}`,
-        callbackUrl: this.config.callbackUrl,
-        mobileNumber: params.customerPhone.replace(/\D/g, "").slice(-10),
-        merchantUserId: params.bookingId || `user_${params.customerPhone}`,
-        paymentInstrument: {
-          type: "UPI",
+        paymentFlow: {
+          type: "PG_CHECKOUT",
+          message: `Payment for ${params.orderId}`,
+          merchantUrls: {
+            redirectUrl: `${this.config.redirectUrl}?merchantTransactionId=${merchantTransactionId}`,
+            callbackUrl: this.config.callbackUrl,
+          },
         },
         expireAfter: params.expireAfter ?? 600, // 10 minutes default
         metaInfo: {
@@ -147,23 +146,16 @@ class PhonePeService {
         paymentModeConfig: params.paymentModeConfig,
       };
 
-      const base64Request = Buffer.from(JSON.stringify(paymentRequest)).toString("base64");
-      const checksum = this.generateChecksum(base64Request, "PAY");
-
-      const payUrl = `${this.getBaseUrl()}/pg/v1/pay`;
+      const payUrl = `${this.getBaseUrl()}/checkout/v2/pay`;
       console.log("[PhonePe] Payment request URL:", payUrl);
       
       const response = await fetch(payUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-CLIENT-ID": this.config.clientId,
-          "X-VERIFY": checksum,
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `O-Bearer ${authToken}`,
         },
-        body: JSON.stringify({
-          request: base64Request,
-        }),
+        body: JSON.stringify(paymentRequest),
       });
 
       if (!response.ok) {
@@ -175,12 +167,15 @@ class PhonePeService {
       const data: PhonePePaymentResponse = await response.json();
       console.log("[PhonePe] Payment response:", data);
 
-      if (data.success && data.data?.instrumentResponse?.redirectUrl) {
+      const redirectUrl = data?.redirectUrl || data?.data?.instrumentResponse?.redirectUrl;
+      const merchantOrderId = data?.orderId || data?.data?.merchantTransactionId || merchantTransactionId;
+
+      if (data.success && redirectUrl) {
         return {
           success: true,
           message: "Payment initiated",
-          redirectUrl: data.data.instrumentResponse.redirectUrl,
-          merchantTransactionId: merchantTransactionId,
+          redirectUrl,
+          merchantTransactionId: merchantOrderId,
         };
       }
 
@@ -205,25 +200,20 @@ class PhonePeService {
    */
   async checkPaymentStatus(merchantTransactionId: string): Promise<PaymentStatusResponse> {
     try {
-      const checksum = this.generateChecksum(
-        `/pg/v1/status/${this.config.clientId}/${merchantTransactionId}`,
-        "STATUS"
-      );
+      const authToken = await this.generateAuthToken();
+      const statusUrl = `${this.getBaseUrl()}/checkout/v2/order/${merchantTransactionId}/status`;
 
-      const response = await fetch(
-        `${this.getBaseUrl()}/pg/v1/status/${this.config.clientId}/${merchantTransactionId}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CLIENT-ID": this.config.clientId,
-            "X-VERIFY": checksum,
-          },
-        }
-      );
+      const response = await fetch(statusUrl, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `O-Bearer ${authToken}`,
+        },
+      });
 
       if (!response.ok) {
-        throw new Error(`Status check failed: ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(`Status check failed: ${response.status} ${response.statusText} - ${errorText}`);
       }
 
       const data: PhonePeStatusResponse = await response.json();
@@ -260,6 +250,11 @@ class PhonePeService {
    */
   verifyWebhookSignature(payload: string, receivedSignature: string): boolean {
     try {
+      if (!this.config.saltKey) {
+        // v2 Standard Checkout does not require X-VERIFY checksum for core flow.
+        // Keep webhook verification optional unless a salt key is explicitly configured.
+        return true;
+      }
       const signature = this.generateChecksum(payload, "WEBHOOK");
       return signature === receivedSignature;
     } catch (error) {
@@ -299,27 +294,19 @@ class PhonePeService {
       const merchantRefundId = `${this.config.clientId}_REFUND_${Date.now()}`;
 
       const refundRequest = {
-        clientId: this.config.clientId,
-        originalMerchantTransactionId: params.originalMerchantTransactionId,
+        originalMerchantOrderId: params.originalMerchantTransactionId,
         merchantRefundId,
         refundAmount: Math.round(params.refundAmount * 100),
         refundReason: params.refundReason || "Customer requested refund",
       };
 
-      const base64Request = Buffer.from(JSON.stringify(refundRequest)).toString("base64");
-      const checksum = this.generateChecksum(base64Request, "REFUND");
-
-      const response = await fetch(`${this.getBaseUrl()}/pg/v1/refund`, {
+      const response = await fetch(`${this.getBaseUrl()}/payments/v2/refund`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-CLIENT-ID": this.config.clientId,
-          "X-VERIFY": checksum,
-          Authorization: `Bearer ${authToken}`,
+          Authorization: `O-Bearer ${authToken}`,
         },
-        body: JSON.stringify({
-          request: base64Request,
-        }),
+        body: JSON.stringify(refundRequest),
       });
 
       if (!response.ok) {

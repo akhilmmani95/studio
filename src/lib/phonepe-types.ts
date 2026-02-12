@@ -15,17 +15,16 @@ export interface PhonePeAuthResponse {
 }
 
 export interface PhonePePaymentRequest {
-  merchantId: string;
-  merchantTransactionId: string;
+  merchantOrderId: string;
   amount: number;
-  redirectUrl: string;
-  callbackUrl: string;
-  mobileNumber: string;
-  paymentInstrument: {
-    type: "CARD" | "NETBANKING" | "UPI" | "WALLET" | "EMI";
+  paymentFlow: {
+    type: "PG_CHECKOUT";
+    message?: string;
+    merchantUrls: {
+      redirectUrl: string;
+      callbackUrl?: string;
+    };
   };
-  merchantUserId: string;
-  signalId?: string;
   expireAfter?: number;
   metaInfo?: Record<string, string>;
   paymentModeConfig?: {
@@ -37,14 +36,15 @@ export interface PhonePePaymentRequest {
 
 export interface PhonePePaymentResponse {
   success: boolean;
-  code: string;
-  message: string;
-  data: {
-    merchantId: string;
-    merchantTransactionId: string;
-    instrumentResponse: {
-      type: string;
-      redirectUrl: string;
+  code?: string;
+  message?: string;
+  redirectUrl?: string;
+  orderId?: string;
+  data?: {
+    merchantTransactionId?: string;
+    instrumentResponse?: {
+      type?: string;
+      redirectUrl?: string;
     };
   };
 }
@@ -58,16 +58,16 @@ export interface PhonePeStatusCheckRequest {
 
 export interface PhonePeStatusResponse {
   success: boolean;
-  code: string;
-  message: string;
+  code?: string;
+  message?: string;
   data?: {
-    merchantId: string;
-    merchantTransactionId: string;
-    transactionId: string;
-    amount: number;
-    state: "COMPLETED" | "FAILED" | "PENDING";
-    responseCode: string;
-    paymentInstrument: Record<string, any>;
+    merchantId?: string;
+    merchantTransactionId?: string;
+    transactionId?: string;
+    amount?: number;
+    state?: "COMPLETED" | "FAILED" | "PENDING";
+    responseCode?: string;
+    paymentInstrument?: Record<string, any>;
   };
   payload?: {
     state?: "COMPLETED" | "FAILED" | "PENDING";
