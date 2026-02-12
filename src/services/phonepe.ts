@@ -16,7 +16,7 @@ import type {
 } from "@/lib/phonepe-types";
 
 const PHONEPE_API_BASE = "https://api.phonepe.com/apis/hermes";
-const PHONEPE_SANDBOX_BASE = "https://api-sandbox.phonepe.com/apis/hermes";
+const PHONEPE_SANDBOX_BASE = "https://api.sandbox.phonepe.com/apis/hermes";
 
 interface PhonePeConfig {
   clientId: string;
