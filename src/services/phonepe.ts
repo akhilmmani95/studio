@@ -51,7 +51,11 @@ class PhonePeService {
     }
 
     try {
-      const response = await fetch(`${this.getBaseUrl()}/auth/generateToken`, {
+      const baseUrl = this.getBaseUrl();
+      const tokenUrl = `${baseUrl}/auth/generateToken`;
+      console.log("[PhonePe] Generating auth token from:", tokenUrl, "sandbox:", this.config.isSandbox);
+      
+      const response = await fetch(tokenUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -77,7 +81,8 @@ class PhonePeService {
 
       throw new Error(`Auth token generation failed: ${data.message}`);
     } catch (error) {
-      console.error("Error generating PhonePe auth token:", error);
+      console.error("[PhonePe] Error generating auth token:", error instanceof Error ? error.message : error);
+      console.error("[PhonePe] Full error:", error);
       throw error;
     }
   }
@@ -96,7 +101,9 @@ class PhonePeService {
     eventId?: string;
   }): Promise<PaymentInitResponse> {
     try {
+      console.log("[PhonePe] Initiating payment for order:", params.orderId);
       const authToken = await this.generateAuthToken();
+      console.log("[PhonePe] Auth token obtained");
       const merchantTransactionId = `${this.config.clientId}_${params.orderId}_${Date.now()}`;
 
       const paymentRequest: PhonePePaymentRequest = {
@@ -122,7 +129,10 @@ class PhonePeService {
       const base64Request = Buffer.from(JSON.stringify(paymentRequest)).toString("base64");
       const checksum = this.generateChecksum(base64Request, "PAY");
 
-      const response = await fetch(`${this.getBaseUrl()}/pg/v1/pay`, {
+      const payUrl = `${this.getBaseUrl()}/pg/v1/pay`;
+      console.log("[PhonePe] Payment request URL:", payUrl);
+      
+      const response = await fetch(payUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -136,10 +146,13 @@ class PhonePeService {
       });
 
       if (!response.ok) {
-        throw new Error(`Payment initiation failed: ${response.statusText}`);
+        const errorText = await response.text();
+        console.error("[PhonePe] Payment API error:", response.status, errorText);
+        throw new Error(`Payment initiation failed: ${response.statusText} - ${errorText}`);
       }
 
       const data: PhonePePaymentResponse = await response.json();
+      console.log("[PhonePe] Payment response:", data);
 
       if (data.success && data.data?.instrumentResponse?.redirectUrl) {
         return {
@@ -156,7 +169,8 @@ class PhonePeService {
         error: data.code,
       };
     } catch (error) {
-      console.error("Error initiating PhonePe payment:", error);
+      console.error("[PhonePe] Error initiating payment:", error instanceof Error ? error.message : error);
+      console.error("[PhonePe] Full error:", error);
       return {
         success: false,
         message: error instanceof Error ? error.message : "Payment initiation failed",
