@@ -14,17 +14,58 @@ import type { Booking, Event, JWTPayload } from './types';
 // This file is kept for server-exclusive logic like payment verification.
 
 
-export async function processPhonePePayment(data: { amount: number }) {
-    console.log(`Simulating PhonePe payment of ₹${data.amount}`);
-    // In a real app, this would integrate with the PhonePe gateway.
-    // This would involve creating a payment request, getting a redirect URL,
-    // and handling a callback. For this prototype, we'll just simulate a
-    // successful payment and return a mock payment ID.
-    
-    revalidatePath('/admin/bookings');
-    revalidatePath('/admin');
-    
-    return { success: true, paymentId: `PPE_MOCK_${Date.now()}` };
+export async function processPhonePePayment(data: { 
+    amount: number;
+    orderId?: string;
+    customerName?: string;
+    customerPhone?: string;
+    customerEmail?: string;
+    bookingId?: string;
+    eventId?: string;
+  }) {
+    try {
+      // Call the checkout API route instead of calling PhonePe service directly
+      // This keeps the integration in the API layer where environment vars are available
+      const response = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/phonepe/checkout`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          orderId: data.orderId || `ORD_${Date.now()}`,
+          amount: data.amount,
+          customerName: data.customerName || 'Guest',
+          customerPhone: data.customerPhone || '0000000000',
+          customerEmail: data.customerEmail,
+          bookingId: data.bookingId,
+          eventId: data.eventId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.merchantTransactionId) {
+        revalidatePath('/admin/bookings');
+        revalidatePath('/admin');
+        
+        return { 
+          success: true, 
+          paymentId: result.merchantTransactionId,
+          redirectUrl: result.redirectUrl,
+        };
+      }
+
+      return { 
+        success: false, 
+        error: result.message || 'Payment initiation failed' 
+      };
+    } catch (error) {
+      console.error('Error processing PhonePe payment:', error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Payment failed' 
+      };
+    }
 }
 
 export async function generateTicketJwt(payload: Omit<JWTPayload, 'iat'>): Promise<string> {

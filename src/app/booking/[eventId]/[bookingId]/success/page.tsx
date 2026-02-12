@@ -1,11 +1,12 @@
 'use client';
 
-import { notFound, useParams } from 'next/navigation';
+import { notFound, useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState, useRef } from 'react';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
 import { doc } from 'firebase/firestore';
 import { TicketDisplay } from '@/components/booking/TicketDisplay';
 import { Header } from '@/components/shared/Header';
+import { PhonePePaymentCallback } from '@/components/phonepe/PaymentCallback';
 import { Download } from 'lucide-react';
 import type { Booking, Event } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -13,6 +14,7 @@ import { generateTicketJwt } from '@/lib/actions';
 import QRCode from 'qrcode';
 import html2canvas from 'html2canvas';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 function SuccessPageSkeleton() {
     return (
@@ -29,11 +31,15 @@ function SuccessPageSkeleton() {
 
 function BookingSuccessPageContents() {
   const params = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   
   const eventId = params.eventId as string;
   const bookingId = params.bookingId as string;
   const firestore = useFirestore();
   const ticketRef = useRef<HTMLDivElement>(null);
+  const [paymentVerified, setPaymentVerified] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<"COMPLETED" | "FAILED" | "PENDING" | null>(null);
 
   const eventRef = useMemoFirebase(() => (firestore && eventId) ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading: isLoadingEvent } = useDoc<Event>(eventRef);
@@ -104,6 +110,56 @@ function BookingSuccessPageContents() {
 
   const ticketTier = event.ticketTiers.find(t => t.id === booking.ticketTierId);
 
+  // If we have a merchantTransactionId, show payment verification first
+  const merchantTransactionId = searchParams.get('merchantTransactionId');
+  if (merchantTransactionId && !paymentVerified) {
+    return (
+      <>
+        <Header />
+        <main className="flex-1 py-12 md:py-16 bg-secondary/50">
+          <div className="container max-w-2xl mx-auto">
+            <PhonePePaymentCallback
+              onPaymentVerified={(status) => {
+                setPaymentVerified(true);
+                setPaymentStatus(status);
+              }}
+              onClose={() => {
+                if (paymentStatus === "COMPLETED") {
+                  // Payment successful, stay on page
+                  setPaymentVerified(true);
+                } else if (paymentStatus === "FAILED") {
+                  // Payment failed, redirect back to booking
+                  router.push(`/events/${eventId}`);
+                }
+              }}
+            />
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  // If payment failed, show error message
+  if (paymentStatus === "FAILED") {
+    return (
+      <>
+        <Header />
+        <main className="flex-1 py-12 md:py-16 bg-secondary/50">
+          <div className="container max-w-2xl mx-auto">
+            <Alert variant="destructive">
+              <AlertDescription className="mb-4">
+                Payment failed. Please try again or contact support.
+              </AlertDescription>
+              <Button onClick={() => router.push(`/events/${eventId}`)}>
+                Back to Event
+              </Button>
+            </Alert>
+          </div>
+        </main>
+      </>
+    );
+  }
+
   return (
     <>
       <Header />
@@ -138,6 +194,7 @@ function BookingSuccessPageContents() {
       </main>
     </>
   );
+}
 }
 
 export default function BookingSuccessPage() {

@@ -1,0 +1,327 @@
+/**
+ * PhonePe Payment Gateway Service
+ * Handles all interactions with PhonePe API
+ * NOTE: This file is server-only. It uses Node.js built-ins (crypto, Buffer, process.env)
+ */
+
+import crypto from "crypto";
+import type {
+  PhonePeAuthResponse,
+  PhonePePaymentRequest,
+  PhonePePaymentResponse,
+  PhonePeStatusResponse,
+  PhonePeWebhookPayload,
+  PaymentInitResponse,
+  PaymentStatusResponse,
+} from "@/lib/phonepe-types";
+
+const PHONEPE_API_BASE = "https://api.phonepe.com/apis/hermes";
+const PHONEPE_SANDBOX_BASE = "https://api-sandbox.phonepe.com/apis/hermes";
+
+interface PhonePeConfig {
+  clientId: string;
+  clientSecret: string;
+  clientVersion: string;
+  redirectUrl: string;
+  callbackUrl: string;
+  isSandbox: boolean;
+}
+
+class PhonePeService {
+  private config: PhonePeConfig;
+  private authToken: string | null = null;
+  private tokenExpiry: number | null = null;
+
+  constructor(config: PhonePeConfig) {
+    this.config = config;
+  }
+
+  private getBaseUrl(): string {
+    return this.config.isSandbox ? PHONEPE_SANDBOX_BASE : PHONEPE_API_BASE;
+  }
+
+  /**
+   * Step 1: Generate Authorization Token
+   * Creates a unique token for API authentication
+   */
+  async generateAuthToken(): Promise<string> {
+    // Check if token is still valid (with 5 min buffer before expiry)
+    if (this.authToken && this.tokenExpiry && Date.now() < this.tokenExpiry - 300000) {
+      return this.authToken;
+    }
+
+    try {
+      const response = await fetch(`${this.getBaseUrl()}/auth/generateToken`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CLIENT-ID": this.config.clientId,
+        },
+        body: JSON.stringify({
+          clientId: this.config.clientId,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to generate auth token: ${response.statusText}`);
+      }
+
+      const data: PhonePeAuthResponse = await response.json();
+
+      if (data.success && data.data?.token) {
+        this.authToken = data.data.token;
+        // Tokens typically valid for 15 minutes
+        this.tokenExpiry = Date.now() + 15 * 60 * 1000;
+        return this.authToken;
+      }
+
+      throw new Error(`Auth token generation failed: ${data.message}`);
+    } catch (error) {
+      console.error("Error generating PhonePe auth token:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Step 2: Create Payment Request
+   * Initiates a payment transaction
+   */
+  async initiatePayment(params: {
+    orderId: string;
+    amount: number;
+    customerName: string;
+    customerPhone: string;
+    customerEmail?: string;
+    bookingId?: string;
+    eventId?: string;
+  }): Promise<PaymentInitResponse> {
+    try {
+      const authToken = await this.generateAuthToken();
+      const merchantTransactionId = `${this.config.clientId}_${params.orderId}_${Date.now()}`;
+
+      const paymentRequest: PhonePePaymentRequest = {
+        merchantId: this.config.clientId,
+        merchantTransactionId,
+        amount: Math.round(params.amount * 100), // Convert to paise
+        redirectUrl: `${this.config.redirectUrl}?merchantTransactionId=${merchantTransactionId}`,
+        callbackUrl: this.config.callbackUrl,
+        mobileNumber: params.customerPhone.replace(/\D/g, "").slice(-10),
+        merchantUserId: params.bookingId || `user_${params.customerPhone}`,
+        paymentInstrument: {
+          type: "UPI",
+        },
+        expireAfter: 600, // 10 minutes
+        metaInfo: {
+          bookingId: params.bookingId || "",
+          eventId: params.eventId || "",
+          customerName: params.customerName,
+          customerEmail: params.customerEmail || "",
+        },
+      };
+
+      const base64Request = Buffer.from(JSON.stringify(paymentRequest)).toString("base64");
+      const checksum = this.generateChecksum(base64Request, "PAY");
+
+      const response = await fetch(`${this.getBaseUrl()}/pg/v1/pay`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CLIENT-ID": this.config.clientId,
+          "X-VERIFY": checksum,
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          request: base64Request,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Payment initiation failed: ${response.statusText}`);
+      }
+
+      const data: PhonePePaymentResponse = await response.json();
+
+      if (data.success && data.data?.instrumentResponse?.redirectUrl) {
+        return {
+          success: true,
+          message: "Payment initiated",
+          redirectUrl: data.data.instrumentResponse.redirectUrl,
+          merchantTransactionId: merchantTransactionId,
+        };
+      }
+
+      return {
+        success: false,
+        message: data.message || "Failed to initiate payment",
+        error: data.code,
+      };
+    } catch (error) {
+      console.error("Error initiating PhonePe payment:", error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Payment initiation failed",
+      };
+    }
+  }
+
+  /**
+   * Step 4a: Check Payment Status
+   * Verifies payment status via API (fallback if webhook fails)
+   */
+  async checkPaymentStatus(merchantTransactionId: string): Promise<PaymentStatusResponse> {
+    try {
+      const checksum = this.generateChecksum(
+        `/pg/v1/status/${this.config.clientId}/${merchantTransactionId}`,
+        "STATUS"
+      );
+
+      const response = await fetch(
+        `${this.getBaseUrl()}/pg/v1/status/${this.config.clientId}/${merchantTransactionId}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CLIENT-ID": this.config.clientId,
+            "X-VERIFY": checksum,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Status check failed: ${response.statusText}`);
+      }
+
+      const data: PhonePeStatusResponse = await response.json();
+
+      if (data.success) {
+        return {
+          success: true,
+          message: `Payment ${data.data.state}`,
+          state: data.data.state,
+          transactionId: data.data.transactionId,
+        };
+      }
+
+      return {
+        success: false,
+        message: data.message || "Status check failed",
+        error: data.code,
+      };
+    } catch (error) {
+      console.error("Error checking PhonePe payment status:", error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Status check failed",
+      };
+    }
+  }
+
+  /**
+   * Verify Webhook Signature
+   * Validates that the webhook came from PhonePe
+   */
+  verifyWebhookSignature(payload: string, receivedSignature: string): boolean {
+    try {
+      const signature = this.generateChecksum(payload, "WEBHOOK");
+      return signature === receivedSignature;
+    } catch (error) {
+      console.error("Error verifying webhook signature:", error);
+      return false;
+    }
+  }
+
+  /**
+   * Generate Checksum for Request/Response Verification
+   * Security measure to ensure data integrity
+   */
+  private generateChecksum(
+    payload: string,
+    type: "PAY" | "STATUS" | "WEBHOOK" | "REFUND"
+  ): string {
+    const keyIndex = 1;
+    const hashInput = `${payload}${this.config.saltKey}${type}`;
+    const hash = crypto.createHash("sha256").update(hashInput).digest("hex");
+    return `${hash}###${keyIndex}`;
+  }
+
+  /**
+   * Refund Payment (Optional Feature)
+   * Process refund for a transaction
+   */
+  async refundPayment(params: {
+    originalMerchantTransactionId: string;
+    refundAmount: number;
+    refundReason?: string;
+  }): Promise<PaymentStatusResponse> {
+    try {
+      const authToken = await this.generateAuthToken();
+      const merchantRefundId = `${this.config.clientId}_REFUND_${Date.now()}`;
+
+      const refundRequest = {
+        clientId: this.config.clientId,
+        originalMerchantTransactionId: params.originalMerchantTransactionId,
+        merchantRefundId,
+        refundAmount: Math.round(params.refundAmount * 100),
+        refundReason: params.refundReason || "Customer requested refund",
+      };
+
+      const base64Request = Buffer.from(JSON.stringify(refundRequest)).toString("base64");
+      const checksum = this.generateChecksum(base64Request, "REFUND");
+
+      const response = await fetch(`${this.getBaseUrl()}/pg/v1/refund`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CLIENT-ID": this.config.clientId,
+          "X-VERIFY": checksum,
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          request: base64Request,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Refund failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      return {
+        success: data.success,
+        message: data.message || "Refund processed",
+        error: data.code,
+      };
+    } catch (error) {
+      console.error("Error refunding PhonePe payment:", error);
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : "Refund failed",
+      };
+    }
+  }
+}
+
+// Initialize service with environment variables
+function initPhonePeService(): PhonePeService {
+  const clientId = process.env.PHONEPE_CLIENT_ID;
+  const clientSecret = process.env.PHONEPE_CLIENT_SECRET;
+  const clientVersion = process.env.PHONEPE_CLIENT_VERSION;
+  const redirectUrl = process.env.PHONEPE_REDIRECT_URL;
+  const callbackUrl = process.env.PHONEPE_CALLBACK_URL;
+
+  if (!clientId || !clientSecret || !clientVersion || !redirectUrl || !callbackUrl) {
+    throw new Error("PhonePe environment variables are not configured");
+  }
+
+  return new PhonePeService({
+    clientId,
+    clientSecret,
+    clientVersion,
+    redirectUrl,
+    callbackUrl,
+    isSandbox: process.env.PHONEPE_SANDBOX === "true",
+  });
+}
+
+export const phonePeService = initPhonePeService();

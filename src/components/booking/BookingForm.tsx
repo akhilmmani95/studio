@@ -36,7 +36,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Minus, Plus, Ticket } from 'lucide-react';
 import { BookingSchema } from '@/lib/schemas';
-import { processPhonePePayment } from '@/lib/actions';
+import { initiatePhonePePayment, loadPhonePePayPage } from '@/lib/phonepe-client';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 
@@ -80,42 +80,57 @@ export function BookingForm({ event }: BookingFormProps) {
     setIsSubmitting(true);
     
     try {
-      // Simulate calling PhonePe and getting a successful response
-      const paymentResult = await processPhonePePayment({ amount: totalAmount });
+      // Step 1 & 2: Generate authorization token and create payment request
+      const paymentResult = await initiatePhonePePayment({
+        orderId: `ORD_${Date.now()}`,
+        amount: totalAmount,
+        customerName: data.name,
+        customerPhone: data.phone,
+        bookingId: event.id,
+        eventId: event.id,
+      });
 
-      if (paymentResult?.success && paymentResult.paymentId) {
-          // Payment verified, now create booking in Firestore
-          const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
-          const newBooking: Booking = {
-              id: newBookingRef.id,
-              eventId: event.id,
-              userName: data.name,
-              phone: data.phone,
-              ticketTierId: selectedTier.id,
-              quantity: quantity,
-              totalAmount: totalAmount,
-              bookingDate: new Date().toISOString(),
-              redeemed: false,
-              redeemedAt: null,
-              paymentId: paymentResult.paymentId,
-          };
-
-          await setDoc(newBookingRef, newBooking);
-          
-          router.push(`/booking/${event.id}/${newBooking.id}/success`);
-      } else {
-           throw new Error("Payment processing failed.");
+      if (!paymentResult.success || !paymentResult.redirectUrl) {
+        throw new Error(paymentResult.message || "Payment initiation failed");
       }
+
+      // Create booking first with pending status before redirecting to PhonePe
+      const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
+      const newBooking: Booking = {
+        id: newBookingRef.id,
+        eventId: event.id,
+        userName: data.name,
+        phone: data.phone,
+        ticketTierId: selectedTier.id,
+        quantity: quantity,
+        totalAmount: totalAmount,
+        bookingDate: new Date().toISOString(),
+        redeemed: false,
+        redeemedAt: null,
+        paymentId: paymentResult.merchantTransactionId,
+      };
+
+      await setDoc(newBookingRef, newBooking);
+
+      // Store merchant transaction ID in session/localStorage for callback verification
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('phonePeMerchantTransactionId', paymentResult.merchantTransactionId!);
+        sessionStorage.setItem('phonepeBookingId', newBookingRef.id);
+        sessionStorage.setItem('phonepeEventId', event.id);
+      }
+
+      // Step 3: Invoke PayPage - Redirect to PhonePe payment gateway
+      loadPhonePePayPage(paymentResult.redirectUrl);
 
     } catch (error) {
       console.error(error);
       toast({
         title: "Booking Failed",
-        description: "Something went wrong while processing the payment. Please try again.",
+        description: error instanceof Error ? error.message : "Something went wrong while processing the payment. Please try again.",
         variant: "destructive",
       });
     } finally {
-        setIsSubmitting(false);
+      setIsSubmitting(false);
     }
   }
 
