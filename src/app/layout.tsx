@@ -37,7 +37,6 @@ export default function RootLayout({
       suppressHydrationWarning={true}
     >
       <head>
-        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
       </head>
       <body className={cn('antialiased font-body')} suppressHydrationWarning={true}>
         <FirebaseClientProvider>

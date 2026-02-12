@@ -36,7 +36,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Minus, Plus, Ticket } from 'lucide-react';
 import { BookingSchema } from '@/lib/schemas';
-import { createRazorpayOrder, verifyRazorpayPayment } from '@/lib/actions';
+import { processPhonePePayment } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
 
@@ -45,12 +45,6 @@ type BookingFormProps = {
 };
 
 const CheckoutFormSchema = BookingSchema.pick({ name: true, phone: true });
-
-declare global {
-  interface Window {
-    Razorpay: any;
-  }
-}
 
 export function BookingForm({ event }: BookingFormProps) {
   const { toast } = useToast();
@@ -86,89 +80,42 @@ export function BookingForm({ event }: BookingFormProps) {
     setIsSubmitting(true);
     
     try {
-      const orderData = await createRazorpayOrder(totalAmount);
-      if (!orderData || !orderData.key) {
-        throw new Error('Order creation failed');
+      // Simulate calling PhonePe and getting a successful response
+      const paymentResult = await processPhonePePayment({ amount: totalAmount });
+
+      if (paymentResult?.success && paymentResult.paymentId) {
+          // Payment verified, now create booking in Firestore
+          const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
+          const newBooking: Booking = {
+              id: newBookingRef.id,
+              eventId: event.id,
+              userName: data.name,
+              phone: data.phone,
+              ticketTierId: selectedTier.id,
+              quantity: quantity,
+              totalAmount: totalAmount,
+              bookingDate: new Date().toISOString(),
+              redeemed: false,
+              redeemedAt: null,
+              paymentId: paymentResult.paymentId,
+          };
+
+          await setDoc(newBookingRef, newBooking);
+          
+          router.push(`/booking/${event.id}/${newBooking.id}/success`);
+      } else {
+           throw new Error("Payment processing failed.");
       }
-
-      const options = {
-        key: orderData.key,
-        amount: orderData.amount,
-        currency: orderData.currency,
-        name: 'TicketVerse',
-        description: `Booking for ${event.name}`,
-        order_id: orderData.id,
-        handler: async function (response: any) {
-          try {
-            const verification = await verifyRazorpayPayment({
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_signature: response.razorpay_signature,
-            });
-
-            if (verification?.success) {
-                // Payment verified, now create booking in Firestore
-                const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
-                const newBooking: Booking = {
-                    id: newBookingRef.id,
-                    eventId: event.id,
-                    userName: data.name,
-                    phone: data.phone,
-                    ticketTierId: selectedTier.id,
-                    quantity: quantity,
-                    totalAmount: totalAmount,
-                    bookingDate: new Date().toISOString(),
-                    redeemed: false,
-                    redeemedAt: null,
-                    paymentId: response.razorpay_payment_id,
-                };
-
-                await setDoc(newBookingRef, newBooking);
-                
-                router.push(`/booking/${event.id}/${newBooking.id}/success`);
-            } else {
-                 throw new Error("Payment verification failed.");
-            }
-
-          } catch (error) {
-            console.error(error);
-            toast({
-              title: "Booking Failed",
-              description: "Payment verification failed. Please contact support.",
-              variant: "destructive"
-            });
-            setIsSubmitting(false);
-          }
-        },
-        prefill: {
-          name: data.name,
-          contact: data.phone,
-        },
-        theme: {
-          color: '#8B5CF6',
-        },
-        modal: {
-            ondismiss: function() {
-                setIsSubmitting(false);
-                toast({
-                    title: "Payment Cancelled",
-                    description: "You can try booking again.",
-                    variant: "default"
-                });
-            }
-        }
-      };
-      const rzp = new window.Razorpay(options);
-      rzp.open();
 
     } catch (error) {
       console.error(error);
       toast({
         title: "Booking Failed",
-        description: "Something went wrong while setting up the payment. Please try again.",
+        description: "Something went wrong while processing the payment. Please try again.",
         variant: "destructive",
       });
-      setIsSubmitting(false);
+    } finally {
+        setIsSubmitting(false);
     }
   }
 
