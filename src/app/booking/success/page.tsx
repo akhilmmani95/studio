@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { Suspense, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Header } from '@/components/shared/Header';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Loader2 } from 'lucide-react';
 
-export default function BookingSuccessBridgePage() {
+function BookingSuccessBridgeContents() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -46,5 +46,33 @@ export default function BookingSuccessBridgePage() {
         </div>
       </main>
     </>
+  );
+}
+
+export default function BookingSuccessBridgePage() {
+  return (
+    <Suspense
+      fallback={
+        <>
+          <Header />
+          <main className="flex-1 py-12 md:py-16 bg-secondary/50">
+            <div className="container max-w-2xl mx-auto">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Finalizing Payment</CardTitle>
+                  <CardDescription>Preparing your confirmation page.</CardDescription>
+                </CardHeader>
+                <CardContent className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Please wait...
+                </CardContent>
+              </Card>
+            </div>
+          </main>
+        </>
+      }
+    >
+      <BookingSuccessBridgeContents />
+    </Suspense>
   );
 }
