@@ -169,8 +169,10 @@ class PhonePeService {
 
       const redirectUrl = data?.redirectUrl || data?.data?.instrumentResponse?.redirectUrl;
       const merchantOrderId = data?.orderId || data?.data?.merchantTransactionId || merchantTransactionId;
+      const responseState = (data as unknown as { state?: string }).state;
+      const isSuccessfulInit = Boolean(redirectUrl) || data.success === true;
 
-      if (data.success && redirectUrl) {
+      if (isSuccessfulInit) {
         return {
           success: true,
           message: "Payment initiated",
@@ -181,7 +183,9 @@ class PhonePeService {
 
       return {
         success: false,
-        message: data.message || "Failed to initiate payment",
+        message:
+          data.message ||
+          (responseState ? `Payment initiation state: ${responseState}` : "Failed to initiate payment"),
         error: data.code,
       };
     } catch (error) {
@@ -217,11 +221,14 @@ class PhonePeService {
       }
 
       const data: PhonePeStatusResponse = await response.json();
-      const normalizedState = data?.payload?.state || data?.data?.state;
+      const normalizedState =
+        data?.payload?.state ||
+        data?.data?.state ||
+        (data as unknown as { state?: "COMPLETED" | "FAILED" | "PENDING" }).state;
       const normalizedTransactionId =
         data?.payload?.transactionId || data?.data?.transactionId;
 
-      if (data.success && normalizedState) {
+      if ((data.success || normalizedState) && normalizedState) {
         return {
           success: true,
           message: `Payment ${normalizedState}`,
