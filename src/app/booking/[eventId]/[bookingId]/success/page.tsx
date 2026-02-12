@@ -195,7 +195,6 @@ function BookingSuccessPageContents() {
     </>
   );
 }
-}
 
 export default function BookingSuccessPage() {
     return (
