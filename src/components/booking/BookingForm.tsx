@@ -80,13 +80,17 @@ export function BookingForm({ event }: BookingFormProps) {
     setIsSubmitting(true);
     
     try {
+      // Create a booking document reference early so we can pass a stable bookingId
+      // into PhonePe redirect metadata before redirecting to payment page.
+      const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
+
       // Step 1 & 2: Generate authorization token and create payment request
       const paymentResult = await initiatePhonePePayment({
         orderId: `ORD_${Date.now()}`,
         amount: totalAmount,
         customerName: data.name,
         customerPhone: data.phone,
-        bookingId: event.id,
+        bookingId: newBookingRef.id,
         eventId: event.id,
       });
 
@@ -95,7 +99,6 @@ export function BookingForm({ event }: BookingFormProps) {
       }
 
       // Create booking first with pending status before redirecting to PhonePe
-      const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
       const newBooking: Booking = {
         id: newBookingRef.id,
         eventId: event.id,

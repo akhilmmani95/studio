@@ -46,6 +46,25 @@ class PhonePeService {
     return this.config.isSandbox ? PHONEPE_SANDBOX_AUTH_URL : PHONEPE_AUTH_URL;
   }
 
+  private buildRedirectUrl(eventId?: string, bookingId?: string, merchantOrderId?: string): string {
+    let redirectUrl = this.config.redirectUrl;
+
+    if (eventId) {
+      redirectUrl = redirectUrl.replace("[eventId]", encodeURIComponent(eventId));
+    }
+
+    if (bookingId) {
+      redirectUrl = redirectUrl.replace("[bookingId]", encodeURIComponent(bookingId));
+    }
+
+    if (merchantOrderId) {
+      const separator = redirectUrl.includes("?") ? "&" : "?";
+      redirectUrl = `${redirectUrl}${separator}merchantTransactionId=${encodeURIComponent(merchantOrderId)}`;
+    }
+
+    return redirectUrl;
+  }
+
   /**
    * Step 1: Generate Authorization Token
    * Creates a unique token for API authentication
@@ -131,7 +150,11 @@ class PhonePeService {
           type: "PG_CHECKOUT",
           message: `Payment for ${params.orderId}`,
           merchantUrls: {
-            redirectUrl: `${this.config.redirectUrl}?merchantTransactionId=${merchantTransactionId}`,
+            redirectUrl: this.buildRedirectUrl(
+              params.eventId,
+              params.bookingId,
+              merchantTransactionId
+            ),
             callbackUrl: this.config.callbackUrl,
           },
         },
