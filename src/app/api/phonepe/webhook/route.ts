@@ -10,6 +10,18 @@ import { phonePeService } from "@/services/phonepe";
 // Firebase Admin SDK will need to be initialized in production
 // Import from 'firebase-admin/firestore' and set up credentials
 
+// Handle OPTIONS request for CORS preflight
+export async function OPTIONS(request: NextRequest) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, X-Verify, X-CLIENT-ID",
+    },
+  });
+}
+
 interface WebhookPayload {
   event: string;
   transactionId: string;
@@ -32,7 +44,12 @@ export async function POST(request: NextRequest) {
       console.warn("Missing X-Verify header in webhook");
       return NextResponse.json(
         { success: false, message: "Missing verification header" },
-        { status: 401 }
+        {
+          status: 401,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
       );
     }
 
@@ -41,7 +58,12 @@ export async function POST(request: NextRequest) {
       console.warn("Invalid webhook signature");
       return NextResponse.json(
         { success: false, message: "Invalid signature" },
-        { status: 401 }
+        {
+          status: 401,
+          headers: {
+            "Access-Control-Allow-Origin": "*",
+          },
+        }
       );
     }
 
@@ -57,14 +79,27 @@ export async function POST(request: NextRequest) {
     const result = await processPaymentStatus(payload);
 
     if (!result.success) {
-      return NextResponse.json(result, { status: 400 });
+      return NextResponse.json(result, {
+        status: 400,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+        },
+      });
     }
 
     // Return success to PhonePe
-    return NextResponse.json({
-      success: true,
-      message: "Webhook processed",
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        message: "Webhook processed",
+      },
+      {
+        status: 200,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
   } catch (error) {
     console.error("Webhook processing error:", error);
     return NextResponse.json(
@@ -72,7 +107,12 @@ export async function POST(request: NextRequest) {
         success: false,
         message: error instanceof Error ? error.message : "Webhook processing failed",
       },
-      { status: 500 }
+      {
+        status: 500,
+        headers: {
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
     );
   }
 }
