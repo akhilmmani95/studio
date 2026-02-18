@@ -28,6 +28,15 @@ export default function ContactUsPage() {
                     <div className="flex items-center gap-4">
                         <Mail className="w-8 h-8 text-primary" />
                         <div>
+                            
+                            <h3 className="text-xl font-semibold">About The Owner</h3>
+                            <p className="text-muted-foreground">SHIBU PUSHPAMANGALATHU SASEENDRAN</p>
+                            <a href="mailto:support@club7entertainments.com" className="text-primary font-medium hover:underline">
+                                club7entertainments@gmail.com
+                            </a>
+                        </div>
+                        <div>
+                            SHIBU PUSHPAMANGALATHU SASEENDRAN
                             <h3 className="text-xl font-semibold">Email Support</h3>
                             <p className="text-muted-foreground">For general inquiries, support, and feedback.</p>
                             <a href="mailto:support@club7entertainments.com" className="text-primary font-medium hover:underline">
