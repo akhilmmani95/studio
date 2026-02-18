@@ -80,11 +80,10 @@ export function BookingForm({ event }: BookingFormProps) {
     setIsSubmitting(true);
     
     try {
-      // Create a booking document reference early so we can pass a stable bookingId
-      // into PhonePe redirect metadata before redirecting to payment page.
+      // Create a booking document reference early so we can pass a stable bookingId.
       const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
 
-      // Step 1 & 2: Generate authorization token and create payment request
+      // Step 1 & 2: Create order and payment session
       const paymentResult = await initiatePhonePePayment({
         orderId: `ORD_${Date.now()}`,
         amount: totalAmount,
@@ -94,11 +93,11 @@ export function BookingForm({ event }: BookingFormProps) {
         eventId: event.id,
       });
 
-      if (!paymentResult.success || !paymentResult.redirectUrl) {
+      if (!paymentResult.success || !paymentResult.paymentSessionId) {
         throw new Error(paymentResult.message || "Payment initiation failed");
       }
 
-      // Create booking first with pending status before redirecting to PhonePe
+      // Create booking first with pending status before redirecting to payment gateway
       const newBooking: Booking = {
         id: newBookingRef.id,
         eventId: event.id,
@@ -115,15 +114,20 @@ export function BookingForm({ event }: BookingFormProps) {
 
       await setDoc(newBookingRef, newBooking);
 
-      // Store merchant transaction ID in session/localStorage for callback verification
+      // Store order id and booking details for callback verification bridge page.
       if (typeof window !== 'undefined') {
-        sessionStorage.setItem('phonePeMerchantTransactionId', paymentResult.merchantTransactionId!);
+        if (paymentResult.merchantTransactionId) {
+          sessionStorage.setItem('phonePeMerchantTransactionId', paymentResult.merchantTransactionId);
+        }
         sessionStorage.setItem('phonepeBookingId', newBookingRef.id);
         sessionStorage.setItem('phonepeEventId', event.id);
       }
 
-      // Step 3: Invoke PayPage - Redirect to PhonePe payment gateway
-      loadPhonePePayPage(paymentResult.redirectUrl);
+      // Step 3: Invoke Cashfree redirect checkout
+      await loadPhonePePayPage(
+        paymentResult.paymentSessionId,
+        paymentResult.checkoutMode || "sandbox"
+      );
 
     } catch (error) {
       console.error(error);

@@ -9,16 +9,19 @@ import { phonePeService } from "@/services/phonepe";
 
 export async function GET(request: NextRequest) {
   try {
-    const merchantTransactionId = request.nextUrl.searchParams.get("merchantTransactionId");
+    const orderId =
+      request.nextUrl.searchParams.get("order_id") ||
+      request.nextUrl.searchParams.get("orderId") ||
+      request.nextUrl.searchParams.get("merchantTransactionId");
 
-    if (!merchantTransactionId) {
+    if (!orderId) {
       return NextResponse.json(
-        { success: false, message: "Missing merchantTransactionId" },
+        { success: false, message: "Missing order_id" },
         { status: 400 }
       );
     }
 
-    const result = await phonePeService.checkPaymentStatus(merchantTransactionId);
+    const result = await phonePeService.checkPaymentStatus(orderId);
 
     return NextResponse.json(result);
   } catch (error) {

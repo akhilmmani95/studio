@@ -1,6 +1,6 @@
 /**
- * PhonePe Payment Callback Handler Component
- * Handles the return from PhonePe payment gateway
+ * Payment Callback Handler Component
+ * Handles the return from payment gateway
  * Should be used on the success/callback page
  */
 
@@ -28,8 +28,9 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
   useEffect(() => {
     const verifyPayment = async () => {
       try {
-        // Get merchant transaction ID from URL or session storage
+        // Get order id from URL or session storage
         const merchantTransactionId =
+          searchParams.get("order_id") ||
           searchParams.get("merchantTransactionId") ||
           (typeof window !== "undefined"
             ? sessionStorage.getItem("phonePeMerchantTransactionId")
@@ -98,7 +99,7 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
     <Card className="w-full">
       <CardHeader>
         <CardTitle>Payment Verification</CardTitle>
-        <CardDescription>Verifying your payment with PhonePe</CardDescription>
+        <CardDescription>Verifying your payment</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {status === "loading" && (

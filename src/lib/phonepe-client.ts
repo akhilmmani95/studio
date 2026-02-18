@@ -1,5 +1,5 @@
 /**
- * PhonePe Payment Integration Utilities
+ * Payment Integration Utilities
  * Client-side helpers for payment flow
  */
 
@@ -8,8 +8,7 @@
 import type { PaymentInitResponse } from "@/lib/phonepe-types";
 
 /**
- * Initiate PhonePe payment from client
- * Step 1 & 2: Generate token and create payment request via API
+ * Initiate Cashfree payment from client
  */
 export async function initiatePhonePePayment(params: {
   orderId: string;
@@ -52,17 +51,40 @@ export async function initiatePhonePePayment(params: {
 }
 
 /**
- * Step 3: Load and invoke PayPage in iframe
- * Redirects user to PhonePe's payment page
+ * Step 3: Invoke Cashfree checkout (redirect flow)
  */
-export function loadPhonePePayPage(redirectUrl: string): void {
-  if (!redirectUrl) {
-    console.error("No redirect URL provided");
+export async function loadPhonePePayPage(
+  paymentSessionId: string,
+  mode: "sandbox" | "production" = "sandbox"
+): Promise<void> {
+  if (!paymentSessionId) {
+    console.error("No payment session id provided");
     return;
   }
 
-  // Redirect to PhonePe payment page
-  window.location.href = redirectUrl;
+  const scriptId = "cashfree-sdk-js";
+  if (!document.getElementById(scriptId)) {
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.src = "https://sdk.cashfree.com/js/v3/cashfree.js";
+      script.async = true;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("Failed to load Cashfree SDK"));
+      document.head.appendChild(script);
+    });
+  }
+
+  const cashfreeFactory = (window as Window & { Cashfree?: (opts: { mode: "sandbox" | "production" }) => any }).Cashfree;
+  if (!cashfreeFactory) {
+    throw new Error("Cashfree SDK unavailable");
+  }
+
+  const cashfree = cashfreeFactory({ mode });
+  await cashfree.checkout({
+    paymentSessionId,
+    redirectTarget: "_self",
+  });
 }
 
 /**
@@ -101,7 +123,7 @@ export async function verifyPaymentStatus(
 
 /**
  * Handle PhonePe payment callback
- * Called when user returns from PhonePe payment page
+ * Called when user returns from payment page
  */
 export async function handlePhonePeCallback(merchantTransactionId: string): Promise<void> {
   try {

@@ -19,9 +19,6 @@ export async function POST(request: NextRequest) {
       customerEmail,
       bookingId,
       eventId,
-      expireAfter,
-      metaInfo,
-      paymentModeConfig,
     } = body;
 
     // Validate required fields
@@ -49,36 +46,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (expireAfter !== undefined) {
-      if (
-        typeof expireAfter !== "number" ||
-        !Number.isInteger(expireAfter) ||
-        expireAfter <= 0
-      ) {
-        return NextResponse.json(
-          { success: false, message: "Invalid expireAfter value" },
-          { status: 400 }
-        );
-      }
-    }
-
-    if (metaInfo !== undefined && (typeof metaInfo !== "object" || metaInfo === null)) {
-      return NextResponse.json(
-        { success: false, message: "Invalid metaInfo value" },
-        { status: 400 }
-      );
-    }
-
-    if (
-      paymentModeConfig !== undefined &&
-      (typeof paymentModeConfig !== "object" || paymentModeConfig === null)
-    ) {
-      return NextResponse.json(
-        { success: false, message: "Invalid paymentModeConfig value" },
-        { status: 400 }
-      );
-    }
-
     const result = await phonePeService.initiatePayment({
       orderId,
       amount,
@@ -87,9 +54,6 @@ export async function POST(request: NextRequest) {
       customerEmail,
       bookingId,
       eventId,
-      expireAfter,
-      metaInfo,
-      paymentModeConfig,
     });
 
     if (!result.success) {

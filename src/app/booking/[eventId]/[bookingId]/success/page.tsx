@@ -110,8 +110,9 @@ function BookingSuccessPageContents() {
 
   const ticketTier = event.ticketTiers.find(t => t.id === booking.ticketTierId);
 
-  // If we have a merchantTransactionId, show payment verification first
-  const merchantTransactionId = searchParams.get('merchantTransactionId');
+  // If we have an order id, show payment verification first.
+  const merchantTransactionId =
+    searchParams.get('order_id') || searchParams.get('merchantTransactionId');
   if (merchantTransactionId && !paymentVerified) {
     return (
       <>

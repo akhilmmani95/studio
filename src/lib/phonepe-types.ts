@@ -1,99 +1,54 @@
 /**
- * PhonePe API Types and Interfaces
+ * Payment API Types and Interfaces
  */
 
-export interface PhonePeAuthResponse {
-  success?: boolean;
-  code?: string;
+export interface CashfreeCreateOrderResponse {
+  order_id: string;
+  cf_order_id?: string;
+  payment_session_id?: string;
+  order_status?: string;
   message?: string;
-  data?: {
-    token?: string;
-    accessToken?: string;
-  };
-  access_token?: string;
-  expires_in?: number;
+  code?: string;
 }
 
-export interface PhonePePaymentRequest {
-  merchantOrderId: string;
-  amount: number;
-  paymentFlow: {
-    type: "PG_CHECKOUT";
-    message?: string;
-    merchantUrls: {
-      redirectUrl: string;
-      callbackUrl?: string;
+export interface CashfreeGetOrderResponse {
+  order_id: string;
+  cf_order_id?: string;
+  order_status?: "PAID" | "ACTIVE" | "EXPIRED" | "TERMINATED" | string;
+  order_amount?: number;
+  order_currency?: string;
+  payment_session_id?: string;
+  message?: string;
+  code?: string;
+}
+
+export interface CashfreeWebhookPayload {
+  type?: "PAYMENT_SUCCESS_WEBHOOK" | "PAYMENT_FAILED_WEBHOOK" | "PAYMENT_USER_DROPPED_WEBHOOK" | string;
+  event_time?: string;
+  data?: {
+    order?: {
+      order_id?: string;
+    };
+    payment?: {
+      cf_payment_id?: string;
+      payment_status?: "SUCCESS" | "FAILED" | "USER_DROPPED" | string;
+      payment_message?: string;
+    };
+    error_details?: {
+      error_code?: string;
+      error_description?: string;
+      error_reason?: string;
     };
   };
-  expireAfter?: number;
-  metaInfo?: Record<string, string>;
-  paymentModeConfig?: {
-    [key: string]: {
-      enabled: boolean;
-    };
-  };
-}
-
-export interface PhonePePaymentResponse {
-  success: boolean;
-  code?: string;
-  message?: string;
-  redirectUrl?: string;
-  orderId?: string;
-  data?: {
-    merchantTransactionId?: string;
-    instrumentResponse?: {
-      type?: string;
-      redirectUrl?: string;
-    };
-  };
-}
-
-export interface PhonePeStatusCheckRequest {
-  merchantId: string;
-  merchantTransactionId: string;
-  ["X-Verify"]: string;
-  ["X-MERCHANT-ID"]: string;
-}
-
-export interface PhonePeStatusResponse {
-  success: boolean;
-  code?: string;
-  message?: string;
-  data?: {
-    merchantId?: string;
-    merchantTransactionId?: string;
-    transactionId?: string;
-    amount?: number;
-    state?: "COMPLETED" | "FAILED" | "PENDING";
-    responseCode?: string;
-    paymentInstrument?: Record<string, any>;
-  };
-  payload?: {
-    state?: "COMPLETED" | "FAILED" | "PENDING";
-    transactionId?: string;
-    merchantTransactionId?: string;
-  };
-}
-
-export interface PhonePeWebhookPayload {
-  event: "checkout.order.completed" | "checkout.order.failed" | "pg.refund.completed" | "pg.refund.failed";
-  transactionId: string;
-  merchantTransactionId: string;
-  merchantId: string;
-  amount: number;
-  state: "COMPLETED" | "FAILED" | "PENDING";
-  responseCode: string;
-  paymentInstrument: Record<string, any>;
-  timestamp: number;
-  ["X-VERIFY"]: string;
 }
 
 export interface PaymentInitResponse {
   success: boolean;
   message: string;
-  redirectUrl?: string;
+  paymentSessionId?: string;
+  redirectUrl?: string; // kept for backward compatibility
   merchantTransactionId?: string;
+  checkoutMode?: "sandbox" | "production";
   error?: string;
 }
 

@@ -11,14 +11,14 @@ function BookingSuccessBridgeContents() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    const merchantTransactionId = searchParams.get('merchantTransactionId') || '';
+    const orderId = searchParams.get('order_id') || searchParams.get('merchantTransactionId') || '';
     const bookingId =
       typeof window !== 'undefined' ? sessionStorage.getItem('phonepeBookingId') : null;
     const eventId = typeof window !== 'undefined' ? sessionStorage.getItem('phonepeEventId') : null;
 
     if (eventId && bookingId) {
-      const query = merchantTransactionId
-        ? `?merchantTransactionId=${encodeURIComponent(merchantTransactionId)}`
+      const query = orderId
+        ? `?order_id=${encodeURIComponent(orderId)}`
         : '';
       router.replace(`/booking/${eventId}/${bookingId}/success${query}`);
       return;
