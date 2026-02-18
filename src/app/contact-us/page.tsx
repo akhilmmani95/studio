@@ -30,7 +30,7 @@ export default function ContactUsPage() {
                         <div>
                             
                             <h3 className="text-xl font-semibold">About The Owner</h3>
-                            <p className="text-muted-foreground">SHIBU PUSHPAMANGALATHU SASEENDRAN</p>
+                            <p className="text-muted-foreground">KADAVIL BUILDERS AND DEVELOPERS</p>
                             <a href="mailto:support@club7entertainments.com" className="text-primary font-medium hover:underline">
                                 club7entertainments@gmail.com
                             </a>
