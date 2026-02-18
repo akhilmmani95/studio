@@ -36,7 +36,7 @@ export default function ContactUsPage() {
                             </a>
                         </div>
                         <div>
-                            SHIBU PUSHPAMANGALATHU SASEENDRAN
+                           
                             <h3 className="text-xl font-semibold">Email Support</h3>
                             <p className="text-muted-foreground">For general inquiries, support, and feedback.</p>
                             <a href="mailto:support@club7entertainments.com" className="text-primary font-medium hover:underline">
