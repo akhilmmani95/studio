@@ -61,7 +61,12 @@ export function VerifierClient() {
       setIsLoadingEvents(true);
       const eventsQuery = query(collection(firestore, 'events'), where('adminId', '==', user.uid));
       const snapshot = await getDocs(eventsQuery);
-      const eventList = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const eventList = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Event))
+        .filter((event) => new Date(event.date) >= todayStart)
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       setEvents(eventList);
       setIsLoadingEvents(false);
     }

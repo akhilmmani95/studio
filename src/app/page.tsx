@@ -31,6 +31,11 @@ export default function Home() {
   const firestore = useFirestore();
   const eventsQuery = useMemoFirebase(() => firestore ? collection(firestore, 'events') : null, [firestore]);
   const { data: events, isLoading } = useCollection<Event>(eventsQuery);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const upcomingEvents = (events ?? [])
+    .filter((event) => new Date(event.date) >= todayStart)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   return (
     <>
@@ -50,7 +55,7 @@ export default function Home() {
               <EventGridSkeleton/>
           ) : (
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {events.map((event) => (
+                {upcomingEvents.map((event) => (
                     <EventCard key={event.id} event={event} />
                 ))}
             </div>

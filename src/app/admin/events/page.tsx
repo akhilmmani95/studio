@@ -57,6 +57,11 @@ export default function EventsPage() {
   }, [firestore, user]);
   
   const { data: events, isLoading } = useCollection<Event>(eventsQuery);
+  const todayStart = new Date();
+  todayStart.setHours(0, 0, 0, 0);
+  const upcomingEvents = (events ?? [])
+    .filter((event) => new Date(event.date) >= todayStart)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
   const handleDeleteEvent = async () => {
     if (!eventToDelete || !firestore) return;
@@ -96,7 +101,7 @@ export default function EventsPage() {
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {events.map((event) => (
+                {upcomingEvents.map((event) => (
                   <div key={event.id} className="relative group/event">
                     <EventCard event={event} />
                     <div className="absolute top-4 right-4 z-10 flex gap-2 opacity-0 group-hover/event:opacity-100 transition-opacity">
@@ -121,8 +126,8 @@ export default function EventsPage() {
                     </div>
                   </div>
                 ))}
-                {events.length === 0 && (
-                    <p className="text-muted-foreground col-span-2">You haven't created any events yet.</p>
+                {upcomingEvents.length === 0 && (
+                    <p className="text-muted-foreground col-span-2">No upcoming events found.</p>
                 )}
               </div>
             </>
