@@ -3,7 +3,7 @@
 import { notFound, useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState, useRef } from 'react';
 import { useDoc, useFirestore, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { TicketDisplay } from '@/components/booking/TicketDisplay';
 import { Header } from '@/components/shared/Header';
 import { PhonePePaymentCallback } from '@/components/phonepe/PaymentCallback';
@@ -109,6 +109,7 @@ function BookingSuccessPageContents() {
   }
 
   const ticketTier = event.ticketTiers.find(t => t.id === booking.ticketTierId);
+  const effectivePaymentStatus = paymentStatus || booking.paymentStatus || null;
 
   // If we have an order id, show payment verification first.
   const merchantTransactionId =
@@ -122,6 +123,11 @@ function BookingSuccessPageContents() {
             <PhonePePaymentCallback
               onPaymentVerified={(status) => {
                 setPaymentStatus(status);
+                if (bookingRef) {
+                  updateDoc(bookingRef, { paymentStatus: status }).catch((error) =>
+                    console.error("Failed to update booking payment status:", error)
+                  );
+                }
                 // Only mark verification complete for terminal states.
                 if (status === "COMPLETED" || status === "FAILED") {
                   setPaymentVerified(true);
@@ -146,7 +152,7 @@ function BookingSuccessPageContents() {
   }
 
   // If payment failed, show error message
-  if (paymentStatus === "FAILED") {
+  if (effectivePaymentStatus === "FAILED") {
     return (
       <>
         <Header />
@@ -155,6 +161,26 @@ function BookingSuccessPageContents() {
             <Alert variant="destructive">
               <AlertDescription className="mb-4">
                 Payment failed. Please try again or contact support.
+              </AlertDescription>
+              <Button onClick={() => router.push(`/events/${eventId}`)}>
+                Back to Event
+              </Button>
+            </Alert>
+          </div>
+        </main>
+      </>
+    );
+  }
+
+  if (booking.paymentStatus && booking.paymentStatus !== "COMPLETED") {
+    return (
+      <>
+        <Header />
+        <main className="flex-1 py-12 md:py-16 bg-secondary/50">
+          <div className="container max-w-2xl mx-auto">
+            <Alert variant="destructive">
+              <AlertDescription className="mb-4">
+                This booking is not confirmed because payment was not completed.
               </AlertDescription>
               <Button onClick={() => router.push(`/events/${eventId}`)}>
                 Back to Event

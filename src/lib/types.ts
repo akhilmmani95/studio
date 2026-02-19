@@ -28,6 +28,7 @@ export type Booking = {
   redeemed: boolean;
   redeemedAt: string | null;
   paymentId?: string;
+  paymentStatus?: "COMPLETED" | "FAILED" | "PENDING";
 };
 
 export type JWTPayload = {

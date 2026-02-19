@@ -110,6 +110,7 @@ export function BookingForm({ event }: BookingFormProps) {
         redeemed: false,
         redeemedAt: null,
         paymentId: paymentResult.merchantTransactionId,
+        paymentStatus: "PENDING",
       };
 
       await setDoc(newBookingRef, newBooking);

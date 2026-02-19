@@ -102,7 +102,11 @@ export default function AdminDashboardPage() {
 
                 const bookingsQuery = collection(firestore, `events/${eventDoc.id}/bookings`);
                 const bookingsSnapshot = await getDocs(bookingsQuery);
-                const bookings = bookingsSnapshot.docs.map(doc => doc.data() as Booking);
+                const bookings = bookingsSnapshot.docs
+                    .map(doc => doc.data() as Booking)
+                    .filter(
+                        booking => booking.paymentStatus !== "FAILED" && booking.paymentStatus !== "PENDING"
+                    );
 
                 bookings.forEach(booking => {
                     totalRevenue += booking.totalAmount;

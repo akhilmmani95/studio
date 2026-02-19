@@ -43,7 +43,9 @@ export default function BookingsPage() {
             eventName: event.name,
             ticketTierName: ticketTier?.name || 'N/A',
           }
-        });
+        }).filter(
+          (booking) => booking.paymentStatus !== "FAILED" && booking.paymentStatus !== "PENDING"
+        );
         allBookings.push(...eventBookings);
       }
 

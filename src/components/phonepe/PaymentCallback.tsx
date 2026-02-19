@@ -63,14 +63,17 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
           onPaymentVerified?.("PENDING");
 
           // Poll for status updates every 2 seconds for max 30 seconds
+          let isTerminal = false;
           const pollInterval = setInterval(async () => {
             const update = await verifyPaymentStatus(merchantTransactionId);
             if (update.state === "COMPLETED") {
+              isTerminal = true;
               setStatus("success");
               setMessage("Payment confirmed! Your booking is now active.");
               onPaymentVerified?.("COMPLETED");
               clearInterval(pollInterval);
             } else if (update.state === "FAILED") {
+              isTerminal = true;
               setStatus("failed");
               setMessage("Payment failed.");
               onPaymentVerified?.("FAILED");
@@ -78,8 +81,14 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
             }
           }, 2000);
 
-          // Clear interval after 30 seconds
-          setTimeout(() => clearInterval(pollInterval), 30000);
+          // If still pending after 30 seconds, treat this return as not completed.
+          setTimeout(() => {
+            clearInterval(pollInterval);
+            if (isTerminal) return;
+            setStatus("failed");
+            setMessage("Payment was not completed. Please try again.");
+            onPaymentVerified?.("FAILED");
+          }, 30000);
         } else {
           throw new Error("Unknown payment state");
         }
