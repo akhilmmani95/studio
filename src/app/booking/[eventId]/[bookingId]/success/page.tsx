@@ -121,15 +121,20 @@ function BookingSuccessPageContents() {
           <div className="container max-w-2xl mx-auto">
             <PhonePePaymentCallback
               onPaymentVerified={(status) => {
-                setPaymentVerified(true);
                 setPaymentStatus(status);
+                // Only mark verification complete for terminal states.
+                if (status === "COMPLETED" || status === "FAILED") {
+                  setPaymentVerified(true);
+                } else {
+                  setPaymentVerified(false);
+                }
               }}
               onClose={() => {
                 if (paymentStatus === "COMPLETED") {
                   // Payment successful, stay on page
                   setPaymentVerified(true);
-                } else if (paymentStatus === "FAILED") {
-                  // Payment failed, redirect back to booking
+                } else {
+                  // Payment not completed (failed/pending/unknown), redirect back to event
                   router.push(`/events/${eventId}`);
                 }
               }}

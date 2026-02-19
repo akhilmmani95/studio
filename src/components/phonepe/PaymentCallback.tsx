@@ -68,10 +68,12 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
             if (update.state === "COMPLETED") {
               setStatus("success");
               setMessage("Payment confirmed! Your booking is now active.");
+              onPaymentVerified?.("COMPLETED");
               clearInterval(pollInterval);
             } else if (update.state === "FAILED") {
               setStatus("failed");
               setMessage("Payment failed.");
+              onPaymentVerified?.("FAILED");
               clearInterval(pollInterval);
             }
           }, 2000);
