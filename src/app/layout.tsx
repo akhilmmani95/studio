@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   title: 'Club 7 Entertainments',
   description: 'The one-stop platform for booking and verifying event tickets.',
   icons: {
-    icon: 'https://raw.githubusercontent.com/akhilmmani95/studio/main/src/WhatsApp_Image_2026-02-02_at_10.06.35_PM-removebg-preview.png',
+    icon: 'https://raw.githubusercontent.com/akhilmmani95/studio/refs/heads/main/src/components/shared/club7%20logo.jpeg',
   },
 };
 
