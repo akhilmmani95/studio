@@ -1,7 +1,7 @@
 'use client';
 
 import { BookingsClient } from '@/components/admin/BookingsClient';
-import { useFirestore, useUser, useMemoFirebase } from '@/firebase';
+import { useFirestore, useUser } from '@/firebase';
 import { collection, query, getDocs, where } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import type { Event, Booking } from '@/lib/types';
@@ -28,7 +28,11 @@ export default function BookingsPage() {
       // 1. Get all events created by this admin
       const eventsQuery = query(collection(firestore, 'events'), where('adminId', '==', user.uid));
       const eventsSnapshot = await getDocs(eventsQuery);
-      const events = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const events = eventsSnapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Event))
+        .filter((event) => new Date(event.date) >= todayStart);
 
       // 2. For each event, get all its bookings
       for (const event of events) {

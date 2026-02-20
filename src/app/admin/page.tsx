@@ -88,17 +88,20 @@ export default function AdminDashboardPage() {
 
             let totalRevenue = 0;
             let totalTicketsSold = 0;
-            let upcomingEvents = 0;
             const allEventsWithStatus: EventWithSeatStatus[] = [];
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
 
             const eventsQuery = query(collection(firestore, 'events'), where('adminId', '==', user.uid));
             const eventsSnapshot = await getDocs(eventsQuery);
+            const activeEventDocs = eventsSnapshot.docs.filter((eventDoc) => {
+                const event = eventDoc.data() as Event;
+                return new Date(event.date) >= todayStart;
+            });
+            const upcomingEvents = activeEventDocs.length;
 
-            const eventPromises = eventsSnapshot.docs.map(async (eventDoc) => {
+            const eventPromises = activeEventDocs.map(async (eventDoc) => {
                 const event = { ...eventDoc.data(), id: eventDoc.id } as Event & { id: string };
-                if (new Date(event.date) > new Date()) {
-                    upcomingEvents++;
-                }
 
                 const bookingsQuery = collection(firestore, `events/${eventDoc.id}/bookings`);
                 const bookingsSnapshot = await getDocs(bookingsQuery);
