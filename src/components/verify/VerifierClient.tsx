@@ -29,6 +29,7 @@ type VerificationResult = {
     bookingId?: string;
     userName?: string;
     quantity?: number;
+    ticketType?: string;
 };
 
 export function VerifierClient() {
@@ -139,18 +140,25 @@ export function VerifierClient() {
             const { eventId, bookingId } = payload;
             const bookingRef = doc(firestore, `events/${eventId}/bookings`, bookingId);
             const bookingSnap = await getDoc(bookingRef);
+            const eventRef = doc(firestore, 'events', eventId);
+            const eventSnap = await getDoc(eventRef);
+            const eventData = eventSnap.exists() ? (eventSnap.data() as Event) : null;
 
             if (!bookingSnap.exists()) {
                 setResult({ status: 'invalid', message: 'This ticket does not exist.' });
             } else {
                 const bookingData = bookingSnap.data() as Booking;
+                const ticketType = eventData?.ticketTiers.find(
+                  (tier) => tier.id === bookingData.ticketTierId
+                )?.name || 'N/A';
                 if (bookingData.redeemed) {
                     setResult({ 
                         status: 'redeemed', 
                         message: `Ticket was already redeemed at ${new Date(bookingData.redeemedAt!).toLocaleString()}.`,
                         bookingId: bookingData.id,
                         userName: bookingData.userName,
-                        quantity: bookingData.quantity
+                        quantity: bookingData.quantity,
+                        ticketType
                     });
                 } else {
                     // Valid and found online, now redeem it
@@ -163,7 +171,8 @@ export function VerifierClient() {
                         message: 'Ticket is valid and has been redeemed.',
                         bookingId: bookingData.id,
                         userName: bookingData.userName,
-                        quantity: bookingData.quantity
+                        quantity: bookingData.quantity,
+                        ticketType
                     });
                 }
             }
@@ -285,6 +294,10 @@ export function VerifierClient() {
                                 <span className="text-muted-foreground">Guests:</span>
                                 <span className="font-bold">{result.quantity}</span>
                             </div>
+                            <div className="flex justify-between text-base mt-1">
+                                <span className="text-muted-foreground">Ticket Type:</span>
+                                <span className="font-bold">{result.ticketType}</span>
+                            </div>
                             <p className="text-xs font-mono mt-3 text-muted-foreground text-center">{result.bookingId}</p>
                         </div>
                     </div>
@@ -310,6 +323,10 @@ export function VerifierClient() {
                             <div className="flex justify-between text-base mt-1">
                                 <span className="text-muted-foreground">Guests:</span>
                                 <span className="font-bold">{result.quantity}</span>
+                            </div>
+                            <div className="flex justify-between text-base mt-1">
+                                <span className="text-muted-foreground">Ticket Type:</span>
+                                <span className="font-bold">{result.ticketType}</span>
                             </div>
                         </div>
                         <p className="text-sm mt-2 text-foreground">{result.message}</p>
