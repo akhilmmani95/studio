@@ -44,6 +44,8 @@ type BookingFormProps = {
 };
 
 const CheckoutFormSchema = BookingSchema.pick({ name: true, phone: true });
+const SERVICE_TAX_PERCENT = Number(process.env.NEXT_PUBLIC_SERVICE_TAX_PERCENT ?? "2");
+const SERVICE_TAX_FIXED = Number(process.env.NEXT_PUBLIC_SERVICE_TAX_FIXED ?? "0");
 
 function getSoldCount(tierId: string, bookingData: Booking[]): number {
   return bookingData
@@ -95,7 +97,19 @@ export function BookingForm({ event }: BookingFormProps) {
     }
   }, [quantity, remainingSeats]);
 
-  const totalAmount = selectedTier.price * quantity;
+  const ticketAmount = selectedTier.price * quantity;
+  const safeTaxPercent =
+    Number.isFinite(SERVICE_TAX_PERCENT) && SERVICE_TAX_PERCENT > 0 && SERVICE_TAX_PERCENT < 100
+      ? SERVICE_TAX_PERCENT
+      : 0;
+  const safeFixedFee = Number.isFinite(SERVICE_TAX_FIXED) && SERVICE_TAX_FIXED > 0 ? SERVICE_TAX_FIXED : 0;
+  // Gross-up to recover ticket amount after gateway fixed + percentage deductions.
+  const grossPayable =
+    safeTaxPercent > 0
+      ? (ticketAmount + safeFixedFee) / (1 - safeTaxPercent / 100)
+      : ticketAmount + safeFixedFee;
+  const serviceTaxAmount = Number((grossPayable - ticketAmount).toFixed(2));
+  const totalAmount = Number(grossPayable.toFixed(2));
 
   async function handlePayment(data: z.infer<typeof CheckoutFormSchema>) {
     if (!firestore) {
@@ -157,6 +171,8 @@ export function BookingForm({ event }: BookingFormProps) {
         phone: data.phone,
         ticketTierId: selectedTier.id,
         quantity: quantity,
+        ticketAmount,
+        serviceTaxAmount,
         totalAmount: totalAmount,
         bookingDate: new Date().toISOString(),
         redeemed: false,
@@ -275,7 +291,20 @@ export function BookingForm({ event }: BookingFormProps) {
               )}
             />
 
-            <div className="text-right text-2xl font-bold">Total: INR {totalAmount.toLocaleString()}</div>
+            <div className="space-y-1 rounded-md border p-3 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Ticket Amount</span>
+                <span>INR {ticketAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Service Tax ({safeTaxPercent}%)</span>
+                <span>INR {serviceTaxAmount.toLocaleString()}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
+                <span>Total Payable</span>
+                <span>INR {totalAmount.toLocaleString()}</span>
+              </div>
+            </div>
           </CardContent>
           <CardFooter>
             <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || remainingSeats === 0}>

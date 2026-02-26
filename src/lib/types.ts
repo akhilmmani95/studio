@@ -23,6 +23,8 @@ export type Booking = {
   phone: string;
   ticketTierId: string;
   quantity: number;
+  ticketAmount?: number;
+  serviceTaxAmount?: number;
   totalAmount: number;
   bookingDate: string;
   redeemed: boolean;
