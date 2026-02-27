@@ -62,13 +62,23 @@ export function BookingForm({ event }: BookingFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const bookingsQuery = useMemoFirebase(
-    () => (firestore ? collection(firestore, `events/${event.id}/bookings`) : null),
+    () => {
+      if (!firestore) {
+        return null;
+      }
+      const queryRef = collection(firestore, `events/${event.id}/bookings`);
+      (queryRef as { __suppressPermissionError?: boolean }).__suppressPermissionError = true;
+      return queryRef;
+    },
     [firestore, event.id]
   );
-  const { data: bookings } = useCollection<Booking>(bookingsQuery);
+  const { data: bookings, error: bookingsError } = useCollection<Booking>(bookingsQuery);
 
-  const soldSeats = getSoldCount(selectedTier.id, bookings ?? []);
-  const remainingSeats = Math.max(0, selectedTier.totalSeats - soldSeats);
+  const availabilityIsKnown = !bookingsError;
+  const soldSeats = availabilityIsKnown ? getSoldCount(selectedTier.id, bookings ?? []) : 0;
+  const remainingSeats = availabilityIsKnown ? Math.max(0, selectedTier.totalSeats - soldSeats) : Number.POSITIVE_INFINITY;
+  const maxSelectableSeats = availabilityIsKnown ? remainingSeats : selectedTier.totalSeats;
+  const isSoldOut = availabilityIsKnown && remainingSeats === 0;
 
   const form = useForm<z.infer<typeof CheckoutFormSchema>>({
     resolver: zodResolver(CheckoutFormSchema),
@@ -87,15 +97,15 @@ export function BookingForm({ event }: BookingFormProps) {
   };
 
   useEffect(() => {
-    if (remainingSeats === 0) {
+    if (isSoldOut) {
       setQuantity(1);
       return;
     }
 
-    if (quantity > remainingSeats) {
-      setQuantity(remainingSeats);
+    if (Number.isFinite(maxSelectableSeats) && quantity > maxSelectableSeats) {
+      setQuantity(maxSelectableSeats);
     }
-  }, [quantity, remainingSeats]);
+  }, [isSoldOut, maxSelectableSeats, quantity]);
 
   const ticketAmount = selectedTier.price * quantity;
   const safeTaxPercent =
@@ -117,12 +127,12 @@ export function BookingForm({ event }: BookingFormProps) {
       return;
     }
 
-    if (remainingSeats <= 0) {
+    if (isSoldOut) {
       toast({ title: "Sold out", description: "This ticket tier is sold out.", variant: "destructive" });
       return;
     }
 
-    if (quantity > remainingSeats) {
+    if (availabilityIsKnown && quantity > remainingSeats) {
       toast({
         title: "Not enough seats",
         description: `Only ${remainingSeats} tickets left in this tier.`,
@@ -134,19 +144,21 @@ export function BookingForm({ event }: BookingFormProps) {
     setIsSubmitting(true);
 
     try {
-      const latestBookingsSnapshot = await getDocs(collection(firestore, `events/${event.id}/bookings`));
-      const latestBookings = latestBookingsSnapshot.docs.map((snapshot) => snapshot.data() as Booking);
-      const latestRemainingSeats = Math.max(
-        0,
-        selectedTier.totalSeats - getSoldCount(selectedTier.id, latestBookings)
-      );
+      if (availabilityIsKnown) {
+        const latestBookingsSnapshot = await getDocs(collection(firestore, `events/${event.id}/bookings`));
+        const latestBookings = latestBookingsSnapshot.docs.map((snapshot) => snapshot.data() as Booking);
+        const latestRemainingSeats = Math.max(
+          0,
+          selectedTier.totalSeats - getSoldCount(selectedTier.id, latestBookings)
+        );
 
-      if (latestRemainingSeats <= 0) {
-        throw new Error("Sold out");
-      }
+        if (latestRemainingSeats <= 0) {
+          throw new Error("Sold out");
+        }
 
-      if (quantity > latestRemainingSeats) {
-        throw new Error(`Only ${latestRemainingSeats} tickets left`);
+        if (quantity > latestRemainingSeats) {
+          throw new Error(`Only ${latestRemainingSeats} tickets left`);
+        }
       }
 
       const newBookingRef = doc(collection(firestore, `events/${event.id}/bookings`));
@@ -243,7 +255,7 @@ export function BookingForm({ event }: BookingFormProps) {
                     variant="outline"
                     size="icon"
                     onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                    disabled={quantity <= 1 || remainingSeats === 0}
+                    disabled={quantity <= 1 || isSoldOut}
                   >
                     <Minus className="h-4 w-4" />
                   </Button>
@@ -253,13 +265,19 @@ export function BookingForm({ event }: BookingFormProps) {
                     variant="outline"
                     size="icon"
                     onClick={() => setQuantity(quantity + 1)}
-                    disabled={remainingSeats === 0 || quantity >= remainingSeats}
+                    disabled={isSoldOut || quantity >= maxSelectableSeats}
                   >
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
                 <p className={`mt-2 text-sm ${remainingSeats === 0 ? "text-destructive" : "text-muted-foreground"}`}>
-                  {remainingSeats === 0 ? "Sold out" : remainingSeats < 5 ? `Only ${remainingSeats} tickets left` : null}
+                  {availabilityIsKnown
+                    ? isSoldOut
+                      ? "Sold out"
+                      : remainingSeats < 5
+                        ? `Only ${remainingSeats} tickets left`
+                        : null
+                    : null}
                 </p>
               </div>
             </div>
@@ -307,9 +325,9 @@ export function BookingForm({ event }: BookingFormProps) {
             </div>
           </CardContent>
           <CardFooter>
-            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || remainingSeats === 0}>
+            <Button type="submit" className="w-full" size="lg" disabled={isSubmitting || isSoldOut}>
               <Ticket className="mr-2 h-5 w-5" />
-              {remainingSeats === 0
+              {isSoldOut
                 ? "Sold out"
                 : isSubmitting
                   ? "Processing..."

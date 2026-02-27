@@ -13,16 +13,29 @@ export function initializeFirebase() {
     // populate the FirebaseOptions in production. It is critical that we attempt to call initializeApp()
     // without arguments.
     let firebaseApp;
-    try {
-      // Attempt to initialize via Firebase App Hosting environment variables
-      firebaseApp = initializeApp();
-    } catch (e) {
-      // Only warn in production because it's normal to use the firebaseConfig to initialize
-      // during development
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
-      }
+    const hasConfig =
+      !!firebaseConfig &&
+      typeof firebaseConfig.apiKey === "string" &&
+      firebaseConfig.apiKey.length > 0 &&
+      typeof firebaseConfig.projectId === "string" &&
+      firebaseConfig.projectId.length > 0 &&
+      typeof firebaseConfig.appId === "string" &&
+      firebaseConfig.appId.length > 0;
+
+    if (hasConfig) {
       firebaseApp = initializeApp(firebaseConfig);
+    } else {
+      try {
+        // Attempt to initialize via Firebase App Hosting environment variables
+        firebaseApp = initializeApp();
+      } catch (e) {
+        // Only warn in production because it's normal to use the firebaseConfig to initialize
+        // during development
+        if (process.env.NODE_ENV === "production") {
+          console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
+        }
+        firebaseApp = initializeApp(firebaseConfig);
+      }
     }
 
     return getSdks(firebaseApp);
