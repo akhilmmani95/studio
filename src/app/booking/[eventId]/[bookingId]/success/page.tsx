@@ -124,7 +124,20 @@ function BookingSuccessPageContents() {
               onPaymentVerified={(status) => {
                 setPaymentStatus(status);
                 if (bookingRef) {
-                  updateDoc(bookingRef, { paymentStatus: status }).catch((error) =>
+                  const paymentUpdate =
+                    status === "COMPLETED"
+                      ? {
+                          paymentStatus: status,
+                          paymentCompletedAt: new Date().toISOString(),
+                        }
+                      : status === "FAILED"
+                        ? {
+                            paymentStatus: status,
+                            paymentFailedAt: new Date().toISOString(),
+                          }
+                        : { paymentStatus: status };
+
+                  updateDoc(bookingRef, paymentUpdate).catch((error) =>
                     console.error("Failed to update booking payment status:", error)
                   );
                 }
@@ -172,7 +185,7 @@ function BookingSuccessPageContents() {
     );
   }
 
-  if (booking.paymentStatus && booking.paymentStatus !== "COMPLETED") {
+  if (effectivePaymentStatus && effectivePaymentStatus !== "COMPLETED") {
     return (
       <>
         <Header />

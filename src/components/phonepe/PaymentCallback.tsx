@@ -81,13 +81,15 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
             }
           }, 2000);
 
-          // If still pending after 30 seconds, treat this return as not completed.
+          // Stop polling after 30 seconds but keep the booking pending instead of forcing a failure.
           setTimeout(() => {
             clearInterval(pollInterval);
             if (isTerminal) return;
-            setStatus("failed");
-            setMessage("Payment was not completed. Please try again.");
-            onPaymentVerified?.("FAILED");
+            setStatus("pending");
+            setMessage(
+              "Payment is still processing. Please wait a moment and refresh this page if needed."
+            );
+            onPaymentVerified?.("PENDING");
           }, 30000);
         } else {
           throw new Error("Unknown payment state");

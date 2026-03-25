@@ -30,7 +30,11 @@ export type Booking = {
   redeemed: boolean;
   redeemedAt: string | null;
   paymentId?: string;
+  gatewayPaymentId?: string;
   paymentStatus?: "COMPLETED" | "FAILED" | "PENDING";
+  paymentCompletedAt?: string;
+  paymentFailedAt?: string;
+  paymentFailureReason?: string;
 };
 
 export type JWTPayload = {

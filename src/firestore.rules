@@ -70,6 +70,34 @@ service cloud.firestore {
     function isImmutable(fieldName) {
       return request.resource.data[fieldName] == resource.data[fieldName];
     }
+
+    function isBookingPaymentStatusUpdate(eventId, bookingId) {
+      let changedKeys = request.resource.data.diff(resource.data).affectedKeys();
+      let currentStatus = resource.data.paymentStatus;
+      let nextStatus = request.resource.data.paymentStatus;
+
+      return incomingBookingDataIsValid(eventId, bookingId)
+             && isImmutable('userName')
+             && isImmutable('phone')
+             && isImmutable('ticketTierId')
+             && isImmutable('quantity')
+             && isImmutable('ticketAmount')
+             && isImmutable('serviceTaxAmount')
+             && isImmutable('totalAmount')
+             && isImmutable('bookingDate')
+             && isImmutable('redeemed')
+             && isImmutable('redeemedAt')
+             && isImmutable('paymentId')
+             && changedKeys.hasOnly([
+                  'paymentStatus',
+                  'gatewayPaymentId',
+                  'paymentCompletedAt',
+                  'paymentFailedAt',
+                  'paymentFailureReason'
+                ])
+             && (currentStatus == null || currentStatus == 'PENDING' || currentStatus == nextStatus)
+             && (nextStatus == 'PENDING' || nextStatus == 'COMPLETED' || nextStatus == 'FAILED');
+    }
     
     /**
      * On create, validates the incoming event has an owner matching the requestor
@@ -138,7 +166,13 @@ service cloud.firestore {
         allow get: if true;
         allow list: if isSignedIn() && isEventAdmin(eventId);
         allow create: if incomingBookingDataIsValid(eventId, bookingId);
-        allow update: if isSignedIn() && isEventAdmin(eventId) && resource != null && isImmutable('id') && isImmutable('eventId');
+        allow update: if resource != null
+                      && isImmutable('id')
+                      && isImmutable('eventId')
+                      && (
+                        (isSignedIn() && isEventAdmin(eventId))
+                        || isBookingPaymentStatusUpdate(eventId, bookingId)
+                      );
         allow delete: if isSignedIn() && isEventAdmin(eventId) && resource != null;
       }
     }
