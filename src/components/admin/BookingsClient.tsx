@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Download, Check, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { generateTicketJwt } from '@/lib/actions';
+import QRCode from 'qrcode';
 import type { Booking } from '@/lib/types';
 
 type BookingWithEvent = Booking & {
@@ -46,6 +48,7 @@ function generateBookingsCsv(bookings: BookingWithEvent[]) {
 
 export function BookingsClient({ bookings }: BookingsClientProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isDownloadingQr, setIsDownloadingQr] = useState<string | null>(null);
 
   const handleDownload = async () => {
     setIsDownloading(true);
@@ -64,6 +67,25 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
       console.error('Failed to download CSV', error);
     } finally {
       setIsDownloading(false);
+    }
+  };
+
+  const handleDownloadQr = async (booking: BookingWithEvent) => {
+    setIsDownloadingQr(booking.id);
+    try {
+      const jwt = await generateTicketJwt({ bookingId: booking.id, eventId: booking.eventId });
+      const qrDataUrl = await QRCode.toDataURL(jwt, { width: 400, margin: 2 });
+      const link = document.createElement('a');
+      link.setAttribute('href', qrDataUrl);
+      link.setAttribute('download', `ticket-${booking.id}.png`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Failed to download QR', error);
+    } finally {
+      setIsDownloadingQr(null);
     }
   };
 
@@ -86,6 +108,7 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Date</TableHead>
               <TableHead className="text-center">Redeemed</TableHead>
+              <TableHead className="text-center">QR</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -107,6 +130,17 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
                         <X className="mr-1 h-3 w-3" /> No
                     </Badge>
                   )}
+                </TableCell>
+                <TableCell className="text-center">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => handleDownloadQr(booking)}
+                    disabled={isDownloadingQr !== null}
+                  >
+                    <Download className="mr-1 h-4 w-4" />
+                    {isDownloadingQr === booking.id ? 'Downloading…' : 'Download QR'}
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
