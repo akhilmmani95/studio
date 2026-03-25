@@ -1,6 +1,9 @@
+'use client';
+
 import Link from 'next/link';
 import Image from 'next/image';
-import { Calendar, MapPin, Tag } from 'lucide-react';
+import { useState } from 'react';
+import { Calendar, MapPin, Tag, QrCode } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -8,6 +11,7 @@ import {
   CardHeader,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import QRCode from 'qrcode';
 import type { Event } from '@/lib/types';
 import { Badge } from '@/components/ui/badge';
 
@@ -16,9 +20,28 @@ type EventCardProps = {
 };
 
 export function EventCard({ event }: EventCardProps) {
+  const [isDownloadingQR, setIsDownloadingQR] = useState(false);
   const minPrice = event.ticketTiers.length > 0
     ? Math.min(...event.ticketTiers.map((t) => t.price))
     : 0;
+
+  const downloadEventQr = async () => {
+    setIsDownloadingQR(true);
+    try {
+      const url = `${window.location.origin}/events/${event.id}`;
+      const qrDataUrl = await QRCode.toDataURL(url, { width: 400, margin: 2 });
+      const link = document.createElement('a');
+      link.href = qrDataUrl;
+      link.download = `event-${event.id}-qr.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Failed to download event QR code:', error);
+    } finally {
+      setIsDownloadingQR(false);
+    }
+  };
 
   return (
     <Card className="flex flex-col overflow-hidden h-full transition-all hover:shadow-lg hover:-translate-y-1">
@@ -54,7 +77,11 @@ export function EventCard({ event }: EventCardProps) {
           </div>
         </div>
       </CardContent>
-      <CardFooter className="p-4 pt-0">
+      <CardFooter className="p-4 pt-0 space-y-2">
+        <Button onClick={downloadEventQr} size="lg" variant="secondary" disabled={isDownloadingQR}>
+          <QrCode className="mr-2 h-4 w-4" />
+          {isDownloadingQR ? 'Downloading QR…' : 'Download Event QR'}
+        </Button>
         <Button asChild className="w-full" size="lg">
           <Link href={`/events/${event.id}`}>
             <Tag className="mr-2 h-4 w-4" />
