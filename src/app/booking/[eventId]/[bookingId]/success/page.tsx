@@ -7,6 +7,7 @@ import { doc, updateDoc } from 'firebase/firestore';
 import { TicketDisplay } from '@/components/booking/TicketDisplay';
 import { Header } from '@/components/shared/Header';
 import { PhonePePaymentCallback } from '@/components/phonepe/PaymentCallback';
+import { verifyPaymentStatus } from '@/lib/phonepe-client';
 import { Download } from 'lucide-react';
 import type { Booking, Event } from '@/lib/types';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -40,6 +41,8 @@ function BookingSuccessPageContents() {
   const ticketRef = useRef<HTMLDivElement>(null);
   const [paymentVerified, setPaymentVerified] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<"COMPLETED" | "FAILED" | "PENDING" | null>(null);
+  const [isRecheckingPayment, setIsRecheckingPayment] = useState(false);
+  const [recheckMessage, setRecheckMessage] = useState<string | null>(null);
 
   const eventRef = useMemoFirebase(() => (firestore && eventId) ? doc(firestore, 'events', eventId) : null, [firestore, eventId]);
   const { data: event, isLoading: isLoadingEvent } = useDoc<Event>(eventRef);
@@ -78,6 +81,66 @@ function BookingSuccessPageContents() {
         link.click();
         document.body.removeChild(link);
     });
+  };
+
+  const handleRecheckPayment = async () => {
+    if (!booking?.paymentId) {
+      setRecheckMessage("Payment reference not found for this booking.");
+      return;
+    }
+
+    setIsRecheckingPayment(true);
+    setRecheckMessage(null);
+
+    try {
+      const verification = await verifyPaymentStatus(booking.paymentId);
+
+      if (!verification.success || !verification.state) {
+        setRecheckMessage(verification.message || "Unable to verify payment right now.");
+        return;
+      }
+
+      setPaymentStatus(verification.state);
+
+      if (bookingRef) {
+        const paymentUpdate =
+          verification.state === "COMPLETED"
+            ? {
+                paymentStatus: "COMPLETED" as const,
+                paymentCompletedAt: new Date().toISOString(),
+              }
+            : verification.state === "FAILED"
+              ? {
+                  paymentStatus: "FAILED" as const,
+                  paymentFailedAt: new Date().toISOString(),
+                }
+              : {
+                  paymentStatus: "PENDING" as const,
+                };
+
+        await updateDoc(bookingRef, paymentUpdate);
+      }
+
+      if (verification.state === "COMPLETED") {
+        setPaymentVerified(true);
+        setRecheckMessage("Payment confirmed. Your ticket is ready.");
+        return;
+      }
+
+      if (verification.state === "PENDING") {
+        setRecheckMessage("Payment is still processing. Please check again in a moment.");
+        return;
+      }
+
+      setRecheckMessage("Payment is still marked as failed.");
+    } catch (error) {
+      console.error("Failed to recheck payment status:", error);
+      setRecheckMessage(
+        error instanceof Error ? error.message : "Unable to verify payment right now."
+      );
+    } finally {
+      setIsRecheckingPayment(false);
+    }
   };
   
   if (!eventId || !bookingId) {
@@ -175,9 +238,21 @@ function BookingSuccessPageContents() {
               <AlertDescription className="mb-4">
                 Payment failed. Please try again or contact support.
               </AlertDescription>
-              <Button onClick={() => router.push(`/events/${eventId}`)}>
-                Back to Event
-              </Button>
+              {recheckMessage && (
+                <AlertDescription className="mb-4">
+                  {recheckMessage}
+                </AlertDescription>
+              )}
+              <div className="flex gap-2">
+                {booking.paymentId && (
+                  <Button onClick={handleRecheckPayment} disabled={isRecheckingPayment}>
+                    {isRecheckingPayment ? "Checking..." : "Check Payment Again"}
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => router.push(`/events/${eventId}`)}>
+                  Back to Event
+                </Button>
+              </div>
             </Alert>
           </div>
         </main>
@@ -195,9 +270,21 @@ function BookingSuccessPageContents() {
               <AlertDescription className="mb-4">
                 This booking is not confirmed because payment was not completed.
               </AlertDescription>
-              <Button onClick={() => router.push(`/events/${eventId}`)}>
-                Back to Event
-              </Button>
+              {recheckMessage && (
+                <AlertDescription className="mb-4">
+                  {recheckMessage}
+                </AlertDescription>
+              )}
+              <div className="flex gap-2">
+                {booking.paymentId && (
+                  <Button onClick={handleRecheckPayment} disabled={isRecheckingPayment}>
+                    {isRecheckingPayment ? "Checking..." : "Check Payment Again"}
+                  </Button>
+                )}
+                <Button variant="outline" onClick={() => router.push(`/events/${eventId}`)}>
+                  Back to Event
+                </Button>
+              </div>
             </Alert>
           </div>
         </main>
