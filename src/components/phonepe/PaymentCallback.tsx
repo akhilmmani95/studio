@@ -24,6 +24,7 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
   const [status, setStatus] = useState<"loading" | "success" | "failed" | "pending">("loading");
   const [message, setMessage] = useState("Verifying payment...");
   const [transactionId, setTransactionId] = useState<string | null>(null);
+  const [verificationAttempt, setVerificationAttempt] = useState(0);
 
   useEffect(() => {
     const verifyPayment = async () => {
@@ -106,7 +107,13 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
     };
 
     verifyPayment();
-  }, [searchParams, onPaymentVerified]);
+  }, [searchParams, onPaymentVerified, verificationAttempt]);
+
+  const handleCheckAgain = () => {
+    setStatus("loading");
+    setMessage("Checking payment status again...");
+    setVerificationAttempt((current) => current + 1);
+  };
 
   return (
     <Card className="w-full">
@@ -150,6 +157,11 @@ export function PhonePePaymentCallback({ onPaymentVerified, onClose }: PaymentCa
         )}
 
         <div className="flex gap-2 justify-end">
+          {(status === "failed" || status === "pending") && transactionId && (
+            <Button onClick={handleCheckAgain}>
+              Check Status Again
+            </Button>
+          )}
           {(status === "failed" || status === "pending") && (
             <Button variant="outline" onClick={onClose}>
               Close
