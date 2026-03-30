@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -14,6 +14,9 @@ import { Badge } from '@/components/ui/badge';
 import { Download, Check, X } from 'lucide-react';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateTicketJwt } from '@/lib/actions';
+import { useFirestore } from '@/firebase';
+import { useToast } from '@/hooks/use-toast';
+import { doc, updateDoc } from 'firebase/firestore';
 import QRCode from 'qrcode';
 import type { Booking } from '@/lib/types';
 
@@ -27,7 +30,21 @@ type BookingsClientProps = {
 };
 
 function generateBookingsCsv(bookings: BookingWithEvent[]) {
-    const headers = ['Booking ID', 'Event', 'User Name', 'Phone', 'Ticket Tier', 'Quantity', 'Amount', 'Date', 'Redeemed', 'Payment ID'];
+    const headers = [
+      'Booking ID',
+      'Event',
+      'User Name',
+      'Phone',
+      'Ticket Tier',
+      'Quantity',
+      'Amount',
+      'Date',
+      'Payment Status',
+      'Failure Reason',
+      'Redeemed',
+      'Payment ID',
+      'Gateway Payment ID'
+    ];
     const csvRows = [
         headers.join(','),
         ...bookings.map(b => [
@@ -39,21 +56,68 @@ function generateBookingsCsv(bookings: BookingWithEvent[]) {
             b.quantity,
             b.totalAmount,
             new Date(b.bookingDate).toLocaleString(),
+            `"${getPaymentStatusLabel(b)}"`,
+            `"${b.paymentFailureReason || ''}"`,
             b.redeemed,
-            b.paymentId,
+            b.paymentId || '',
+            b.gatewayPaymentId || '',
         ].join(','))
     ];
     return csvRows.join('\n');
 }
 
+function getPaymentStatusLabel(booking: BookingWithEvent) {
+  if (booking.paymentStatus === 'COMPLETED') {
+    return 'SUCCESS';
+  }
+
+  if (booking.paymentFailureReason === 'USER_DROPPED') {
+    return 'USER_DROPPED';
+  }
+
+  if (booking.paymentStatus === 'FAILED') {
+    return 'FAILED';
+  }
+
+  if (booking.paymentStatus === 'PENDING') {
+    return 'PENDING';
+  }
+
+  return 'UNKNOWN';
+}
+
+function getPaymentStatusBadgeClass(booking: BookingWithEvent) {
+  if (booking.paymentStatus === 'COMPLETED') {
+    return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
+  }
+
+  if (booking.paymentFailureReason === 'USER_DROPPED') {
+    return 'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300';
+  }
+
+  if (booking.paymentStatus === 'FAILED') {
+    return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
+  }
+
+  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+}
+
 export function BookingsClient({ bookings }: BookingsClientProps) {
+  const firestore = useFirestore();
+  const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
+  const [bookingRows, setBookingRows] = useState(bookings);
   const [isDownloadingQr, setIsDownloadingQr] = useState<string | null>(null);
+  const [isGeneratingTicket, setIsGeneratingTicket] = useState<string | null>(null);
+
+  useEffect(() => {
+    setBookingRows(bookings);
+  }, [bookings]);
 
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      const csvData = generateBookingsCsv(bookings);
+      const csvData = generateBookingsCsv(bookingRows);
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -89,6 +153,56 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
     }
   };
 
+  const handleAdminGenerateTicket = async (booking: BookingWithEvent) => {
+    if (!firestore) {
+      toast({
+        title: 'Database unavailable',
+        description: 'Unable to update this booking right now.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setIsGeneratingTicket(booking.id);
+
+    try {
+      const bookingRef = doc(firestore, `events/${booking.eventId}/bookings`, booking.id);
+      const paymentCompletedAt = new Date().toISOString();
+
+      await updateDoc(bookingRef, {
+        paymentStatus: 'COMPLETED',
+        paymentCompletedAt,
+      });
+
+      const updatedBooking = {
+        ...booking,
+        paymentStatus: 'COMPLETED' as const,
+        paymentCompletedAt,
+      };
+
+      setBookingRows((current) =>
+        current.map((row) => (row.id === booking.id ? updatedBooking : row))
+      );
+
+      toast({
+        title: 'Ticket generated',
+        description: 'Booking marked as paid. Downloading the ticket QR now.',
+      });
+
+      await handleDownloadQr(updatedBooking);
+    } catch (error) {
+      console.error('Failed to generate admin ticket', error);
+      toast({
+        title: 'Ticket generation failed',
+        description:
+          error instanceof Error ? error.message : 'Unable to mark this booking as paid.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsGeneratingTicket(null);
+    }
+  };
+
   return (
     <div>
       <div className="flex justify-end mb-4">
@@ -107,12 +221,13 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
               <TableHead>Tier</TableHead>
               <TableHead className="text-right">Amount</TableHead>
               <TableHead>Date</TableHead>
+              <TableHead>Payment</TableHead>
               <TableHead className="text-center">Redeemed</TableHead>
-              <TableHead className="text-center">QR</TableHead>
+              <TableHead className="text-center">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bookings.map((booking) => (
+            {bookingRows.map((booking) => (
               <TableRow key={booking.id}>
                 <TableCell className="font-mono text-xs">{booking.id}</TableCell>
                 <TableCell className="font-medium">{booking.eventName}</TableCell>
@@ -120,6 +235,20 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
                 <TableCell>{booking.ticketTierName}</TableCell>
                 <TableCell className="text-right">₹{booking.totalAmount.toLocaleString()}</TableCell>
                 <TableCell>{new Date(booking.bookingDate).toLocaleDateString()}</TableCell>
+                <TableCell>
+                  <div className="space-y-2">
+                    <Badge variant="secondary" className={getPaymentStatusBadgeClass(booking)}>
+                      {getPaymentStatusLabel(booking)}
+                    </Badge>
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      {booking.paymentId && <p>Order: {booking.paymentId}</p>}
+                      {booking.gatewayPaymentId && <p>Gateway: {booking.gatewayPaymentId}</p>}
+                      {booking.paymentFailureReason && booking.paymentFailureReason !== 'USER_DROPPED' && (
+                        <p>Reason: {booking.paymentFailureReason}</p>
+                      )}
+                    </div>
+                  </div>
+                </TableCell>
                 <TableCell className="text-center">
                   {booking.redeemed ? (
                      <Badge variant="secondary" className="bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300">
@@ -132,22 +261,33 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
                   )}
                 </TableCell>
                 <TableCell className="text-center">
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => handleDownloadQr(booking)}
-                    disabled={isDownloadingQr !== null}
-                  >
-                    <Download className="mr-1 h-4 w-4" />
-                    {isDownloadingQr === booking.id ? 'Downloading…' : 'Download QR'}
-                  </Button>
+                  <div className="flex flex-col items-center gap-2">
+                    {booking.paymentStatus !== 'COMPLETED' && (
+                      <Button
+                        size="sm"
+                        onClick={() => handleAdminGenerateTicket(booking)}
+                        disabled={isGeneratingTicket !== null || isDownloadingQr !== null}
+                      >
+                        {isGeneratingTicket === booking.id ? 'Generating…' : 'Mark Paid & Generate Ticket'}
+                      </Button>
+                    )}
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => handleDownloadQr(booking)}
+                      disabled={isDownloadingQr !== null || isGeneratingTicket !== null}
+                    >
+                      <Download className="mr-1 h-4 w-4" />
+                      {isDownloadingQr === booking.id ? 'Downloading…' : 'Download QR'}
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
-             {bookings.length === 0 && (
+             {bookingRows.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
-                        No bookings yet.
+                    <TableCell colSpan={9} className="h-24 text-center">
+                        No transactions yet.
                     </TableCell>
                 </TableRow>
             )}

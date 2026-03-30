@@ -28,11 +28,7 @@ export default function BookingsPage() {
       // 1. Get all events created by this admin
       const eventsQuery = query(collection(firestore, 'events'), where('adminId', '==', user.uid));
       const eventsSnapshot = await getDocs(eventsQuery);
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
-      const events = eventsSnapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() } as Event))
-        .filter((event) => new Date(event.date) >= todayStart);
+      const events = eventsSnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Event));
 
       // 2. For each event, get all its bookings
       for (const event of events) {
@@ -47,9 +43,7 @@ export default function BookingsPage() {
             eventName: event.name,
             ticketTierName: ticketTier?.name || 'N/A',
           }
-        }).filter(
-          (booking) => booking.paymentStatus !== "FAILED" && booking.paymentStatus !== "PENDING"
-        );
+        });
         allBookings.push(...eventBookings);
       }
 
@@ -67,7 +61,7 @@ export default function BookingsPage() {
 
   return (
     <div className="p-4 md:p-8">
-      <h1 className="text-3xl font-bold font-headline mb-6">All Bookings</h1>
+      <h1 className="text-3xl font-bold font-headline mb-6">All Transactions</h1>
       {isLoading ? (
           <div className='space-y-4'>
               <Skeleton className="h-10 w-40 self-end" />
