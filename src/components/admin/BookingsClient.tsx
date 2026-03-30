@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useDeferredValue, useEffect, useState } from 'react';
 import {
   Table,
   TableBody,
@@ -17,6 +17,7 @@ import { generateTicketJwt } from '@/lib/actions';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
 import { doc, updateDoc } from 'firebase/firestore';
+import { Input } from '@/components/ui/input';
 import QRCode from 'qrcode';
 import type { Booking } from '@/lib/types';
 
@@ -107,17 +108,43 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
   const { toast } = useToast();
   const [isDownloading, setIsDownloading] = useState(false);
   const [bookingRows, setBookingRows] = useState(bookings);
+  const [searchTerm, setSearchTerm] = useState('');
   const [isDownloadingQr, setIsDownloadingQr] = useState<string | null>(null);
   const [isGeneratingTicket, setIsGeneratingTicket] = useState<string | null>(null);
+  const deferredSearchTerm = useDeferredValue(searchTerm);
 
   useEffect(() => {
     setBookingRows(bookings);
   }, [bookings]);
 
+  const normalizedSearchTerm = deferredSearchTerm.trim().toLowerCase();
+  const filteredBookings = bookingRows.filter((booking) => {
+    if (!normalizedSearchTerm) {
+      return true;
+    }
+
+    const searchableText = [
+      booking.id,
+      booking.eventName,
+      booking.userName,
+      booking.phone,
+      booking.ticketTierName,
+      booking.paymentId,
+      booking.gatewayPaymentId,
+      booking.paymentFailureReason,
+      getPaymentStatusLabel(booking),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase();
+
+    return searchableText.includes(normalizedSearchTerm);
+  });
+
   const handleDownload = async () => {
     setIsDownloading(true);
     try {
-      const csvData = generateBookingsCsv(bookingRows);
+      const csvData = generateBookingsCsv(filteredBookings);
       const blob = new Blob([csvData], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -205,11 +232,23 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
 
   return (
     <div>
-      <div className="flex justify-end mb-4">
+      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="w-full md:max-w-sm">
+          <Input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            placeholder="Search by name, phone, booking ID, event, payment ID..."
+          />
+        </div>
+        <div className="flex items-center justify-between gap-3 md:justify-end">
+          <p className="text-sm text-muted-foreground">
+            Showing {filteredBookings.length} of {bookingRows.length} transactions
+          </p>
         <Button onClick={handleDownload} disabled={isDownloading}>
           <Download className="mr-2 h-4 w-4" />
           {isDownloading ? 'Generating...' : 'Export CSV'}
         </Button>
+        </div>
       </div>
       <ScrollArea className="h-[60vh] rounded-md border">
         <Table>
@@ -227,7 +266,7 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {bookingRows.map((booking) => (
+            {filteredBookings.map((booking) => (
               <TableRow key={booking.id}>
                 <TableCell className="font-mono text-xs">{booking.id}</TableCell>
                 <TableCell className="font-medium">{booking.eventName}</TableCell>
@@ -284,10 +323,10 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
                 </TableCell>
               </TableRow>
             ))}
-             {bookingRows.length === 0 && (
+             {filteredBookings.length === 0 && (
                 <TableRow>
                     <TableCell colSpan={9} className="h-24 text-center">
-                        No transactions yet.
+                        {bookingRows.length === 0 ? 'No transactions yet.' : 'No matching transactions found.'}
                     </TableCell>
                 </TableRow>
             )}
