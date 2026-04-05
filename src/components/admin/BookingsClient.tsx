@@ -349,15 +349,17 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
                         {isGeneratingTicket === booking.id ? 'Generating…' : 'Mark Paid & Generate Ticket'}
                       </Button>
                     )}
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => handleDownloadQr(booking)}
-                      disabled={isDownloadingQr !== null || isGeneratingTicket !== null}
-                    >
-                      <Download className="mr-1 h-4 w-4" />
-                      {isDownloadingQr === booking.id ? 'Downloading…' : 'Download QR'}
-                    </Button>
+                    {booking.paymentStatus === 'COMPLETED' && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => handleDownloadQr(booking)}
+                        disabled={isDownloadingQr !== null || isGeneratingTicket !== null}
+                      >
+                        <Download className="mr-1 h-4 w-4" />
+                        {isDownloadingQr === booking.id ? 'Downloading…' : 'Download QR'}
+                      </Button>
+                    )}
                     <Button
                       variant="destructive"
                       size="sm"
