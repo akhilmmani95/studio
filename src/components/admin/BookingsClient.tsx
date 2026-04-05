@@ -16,7 +16,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { generateTicketJwt } from '@/lib/actions';
 import { useFirestore } from '@/firebase';
 import { useToast } from '@/hooks/use-toast';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { Input } from '@/components/ui/input';
 import QRCode from 'qrcode';
 import type { Booking } from '@/lib/types';
@@ -111,6 +111,7 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [isDownloadingQr, setIsDownloadingQr] = useState<string | null>(null);
   const [isGeneratingTicket, setIsGeneratingTicket] = useState<string | null>(null);
+  const [isCancelling, setIsCancelling] = useState<string | null>(null);
   const deferredSearchTerm = useDeferredValue(searchTerm);
 
   useEffect(() => {
@@ -177,6 +178,44 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
       console.error('Failed to download QR', error);
     } finally {
       setIsDownloadingQr(null);
+    }
+  };
+
+  const handleCancelBooking = async (booking: BookingWithEvent) => {
+    if (!firestore) {
+      toast({
+        title: 'Database unavailable',
+        description: 'Unable to cancel this booking right now.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Cancel booking ${booking.id}? This will free up ${booking.quantity} seats for the event.`
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    setIsCancelling(booking.id);
+    try {
+      const bookingRef = doc(firestore, `events/${booking.eventId}/bookings`, booking.id);
+      await deleteDoc(bookingRef);
+      setBookingRows((current) => current.filter((row) => row.id !== booking.id));
+      toast({
+        title: 'Booking cancelled',
+        description: 'The booking has been removed and seats have been freed.',
+      });
+    } catch (error) {
+      console.error('Failed to cancel booking', error);
+      toast({
+        title: 'Cancellation failed',
+        description: error instanceof Error ? error.message : 'Unable to cancel this booking.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsCancelling(null);
     }
   };
 
@@ -318,6 +357,14 @@ export function BookingsClient({ bookings }: BookingsClientProps) {
                     >
                       <Download className="mr-1 h-4 w-4" />
                       {isDownloadingQr === booking.id ? 'Downloading…' : 'Download QR'}
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleCancelBooking(booking)}
+                      disabled={booking.redeemed || isCancelling !== null || isDownloadingQr !== null || isGeneratingTicket !== null}
+                    >
+                      {isCancelling === booking.id ? 'Cancelling…' : 'Cancel Booking'}
                     </Button>
                   </div>
                 </TableCell>

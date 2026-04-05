@@ -38,8 +38,12 @@ export function VerifierClient() {
   const [scannedJwt, setScannedJwt] = useState('');
   const [result, setResult] = useState<VerificationResult | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const [pendingVerifiedBooking, setPendingVerifiedBooking] = useState<Booking | null>(null);
+  const [pendingVerifiedEvent, setPendingVerifiedEvent] = useState<Event | null>(null);
   
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isScanning, setIsScanning] = useState(true);
@@ -116,7 +120,6 @@ export function VerifierClient() {
     }
   };
 
-
   const handleVerify = useCallback(async (jwtToVerify: string) => {
     if (!jwtToVerify) {
         toast({ title: 'Error', description: 'No ticket code provided.', variant: 'destructive'});
@@ -130,6 +133,8 @@ export function VerifierClient() {
     setIsScanning(false);
     setIsVerifying(true);
     setResult(null);
+    setPendingVerifiedBooking(null);
+    setPendingVerifiedEvent(null);
 
     const payload = await verifyTicketJwt(jwtToVerify);
 
@@ -151,6 +156,7 @@ export function VerifierClient() {
                 const ticketType = eventData?.ticketTiers.find(
                   (tier) => tier.id === bookingData.ticketTierId
                 )?.name || 'N/A';
+
                 if (bookingData.redeemed) {
                     setResult({ 
                         status: 'redeemed', 
@@ -161,14 +167,11 @@ export function VerifierClient() {
                         ticketType
                     });
                 } else {
-                    // Valid and found online, now redeem it
-                    await updateDoc(bookingRef, {
-                        redeemed: true,
-                        redeemedAt: new Date().toISOString()
-                    });
+                    setPendingVerifiedBooking({ ...bookingData, id: bookingId });
+                    setPendingVerifiedEvent(eventData || null);
                     setResult({ 
                         status: 'valid', 
-                        message: 'Ticket is valid and has been redeemed.',
+                        message: 'Ticket is valid. Click Verify to redeem it.',
                         bookingId: bookingData.id,
                         userName: bookingData.userName,
                         quantity: bookingData.quantity,
@@ -184,44 +187,90 @@ export function VerifierClient() {
     
     setScannedJwt('');
     setIsVerifying(false);
-    
-    // Auto-clear the result and resume scanning after a delay
-    setTimeout(() => {
-        setResult(null);
-        setIsScanning(true); 
-    }, 5000);
   }, [toast, firestore]);
 
-  // Camera permission logic
   useEffect(() => {
-    const getCameraPermission = async () => {
-      if (typeof navigator.mediaDevices?.getUserMedia !== 'function') {
-        setHasCameraPermission(false);
-        toast({
-            variant: 'destructive',
-            title: 'Camera Not Supported',
-            description: 'Your browser does not support camera access.',
-        });
-        return;
-      }
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-        setHasCameraPermission(true);
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-      } catch (error) {
-        console.error('Error accessing camera:', error);
-        setHasCameraPermission(false);
-        toast({
-          variant: 'destructive',
-          title: 'Camera Access Denied',
-          description: 'Please enable camera permissions in your browser settings to use the scanner.',
-        });
-      }
+    if (!result || result.status === 'valid') {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setResult(null);
+      setIsScanning(true);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timer);
     };
-    getCameraPermission();
+  }, [result]);
+
+  const handleConfirmRedeem = async () => {
+    if (!firestore || !pendingVerifiedBooking || !pendingVerifiedEvent) return;
+    setIsRedeeming(true);
+    try {
+      const bookingRef = doc(firestore, `events/${pendingVerifiedEvent.id}/bookings`, pendingVerifiedBooking.id);
+      await updateDoc(bookingRef, {
+        redeemed: true,
+        redeemedAt: new Date().toISOString(),
+      });
+      toast({ title: 'Success', description: `Ticket for ${pendingVerifiedBooking.userName} has been redeemed.` });
+      setResult({
+        status: 'redeemed',
+        message: 'Ticket has been verified and redeemed.',
+        bookingId: pendingVerifiedBooking.id,
+        userName: pendingVerifiedBooking.userName,
+        quantity: pendingVerifiedBooking.quantity,
+        ticketType: pendingVerifiedEvent.ticketTiers.find((tier) => tier.id === pendingVerifiedBooking.ticketTierId)?.name || 'N/A',
+      });
+      setPendingVerifiedBooking(null);
+      setPendingVerifiedEvent(null);
+    } catch (error) {
+      console.error('Redeem failed:', error);
+      toast({ title: 'Redeem Failed', description: 'Could not redeem this ticket.', variant: 'destructive' });
+    } finally {
+      setIsRedeeming(false);
+    }
+  };
+
+  // Camera permission logic
+  const requestCameraPermission = useCallback(async () => {
+    const getUserMedia =
+      navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices) ||
+      (navigator as any).webkitGetUserMedia?.bind(navigator);
+
+    if (typeof getUserMedia !== 'function') {
+      setHasCameraPermission(false);
+      setCameraError('Your browser does not support camera access.');
+      toast({
+        variant: 'destructive',
+        title: 'Camera Not Supported',
+        description: 'Your browser does not support camera access.',
+      });
+      return;
+    }
+
+    try {
+      setCameraError(null);
+      const stream = await getUserMedia({ video: { facingMode: 'environment' } });
+      setHasCameraPermission(true);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      setHasCameraPermission(false);
+      setCameraError('Please enable camera permissions in your browser settings to use the scanner.');
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description: 'Please enable camera permissions in your browser settings to use the scanner.',
+      });
+    }
   }, [toast]);
+
+  useEffect(() => {
+    requestCameraPermission();
+  }, [requestCameraPermission]);
   
   // QR code scanning loop
   useEffect(() => {
@@ -300,6 +349,11 @@ export function VerifierClient() {
                             </div>
                             <p className="text-xs font-mono mt-3 text-muted-foreground text-center">{result.bookingId}</p>
                         </div>
+                        {pendingVerifiedBooking && (
+                          <Button onClick={handleConfirmRedeem} disabled={isRedeeming} className="mt-4">
+                            {isRedeeming ? 'Verifying…' : 'Verify Ticket'}
+                          </Button>
+                        )}
                     </div>
                 );
             case 'invalid':
@@ -375,8 +429,13 @@ export function VerifierClient() {
                           <AlertTriangle className="h-4 w-4" />
                           <AlertTitle>Camera Access Required</AlertTitle>
                           <AlertDescription>
-                              Please allow camera access to use this feature.
+                              {cameraError || 'Please allow camera access to use this feature.'}
                           </AlertDescription>
+                          <div className="mt-3 flex justify-center">
+                            <Button onClick={requestCameraPermission} size="sm">
+                              Retry Camera Access
+                            </Button>
+                          </div>
                       </Alert>
                   </div>
               )}
